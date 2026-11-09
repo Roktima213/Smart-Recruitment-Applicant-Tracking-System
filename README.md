@@ -13,20 +13,22 @@ This project is built under a **25-Floor Pyramid Execution Model** across 3.5 we
 | **Leader & DevOps Engineer** | Monorepo governance, Docker Compose, CI gates, test harnesses, release gating & floor seal | `devops` / `main` | **Block D** (Floor Seal) | 25 Commits |
 | **Cloud Engineer** | Firebase Auth & Emulator (port 9099), Custom Claims, DB parameters, private storage, SMTP config | `cloud` | **Block A** (Contract Lead) | 25 Commits |
 | **Backend Developer** | 12-table PostgreSQL DDL, Express TypeScript APIs, JWT/RBAC middleware, stage machine, analytics | `backend` | **Block B** (API Logic) | 25 Commits |
-| **Frontend Developer 1** | Responsive layouts, UI design tokens, navigation, dashboard screens, forms, and modals | `frontend` | **Block C1** (UI / Views) | 25 Commits |
-| **Frontend Developer 2** | State management, Firebase Web SDK, Axios interceptors, API hooks, client-side validation | `frontend` | **Block C2** (State & Auth) | 25 Commits |
+| **Frontend Developer 1** | Responsive layouts, UI design tokens, navigation, dashboard screens, forms, and modals | `frontend-1` | **Block C1** (UI / Views) | 25 Commits |
+| **Frontend Developer 2** | State management, Firebase Web SDK, Axios interceptors, API hooks, client-side validation | `frontend-2` | **Block C2** (State & Auth) | 25 Commits |
 
 ---
 
-## 2. The 5 Repository Branches
+## 2. Repository Branches
 
-The repository maintains **5 persistent branches**:
+The repository maintains dedicated branches for all team roles:
 
 1. `main`: The stable, integrated production branch. Tagged at milestone releases (`v0.1.0-week1`, `v0.2.0-week2`, `v0.3.0-week3`, `v1.0.0`).
 2. `devops`: Active branch for the Project Leader & DevOps Engineer for CI/CD workflows, Docker configs, test configurations, and deployment scripts.
-3. `frontend`: Shared active branch for Frontend Developer 1 and Frontend Developer 2. Members branch off into feature branches (`floor-XX/frontend-ui-<topic>` and `floor-XX/frontend-logic-<topic>`) before merging.
-4. `backend`: Active branch for the Backend Developer for database migrations, Express routes, controllers, middleware, and business services.
-5. `cloud`: Active branch for the Cloud Engineer for Firebase Auth, emulator setups, storage configurations, database connection tuning, and cloud deployment pipelines.
+3. `frontend-1`: Dedicated branch for Frontend Developer 1 (UI/Layouts/Styling/Modals).
+4. `frontend-2`: Dedicated branch for Frontend Developer 2 (State/AuthContext/Axios/API integration).
+5. `backend`: Active branch for the Backend Developer for database migrations, Express routes, controllers, middleware, and business services.
+6. `cloud`: Active branch for the Cloud Engineer for Firebase Auth, emulator setups, storage configurations, database connection tuning, and cloud deployment pipelines.
+7. `frontend`: Shared integration branch for frontend releases.
 
 ---
 

@@ -27,10 +27,10 @@
 * **2. Backend Developer (`backend`):**
   * *Task:* Scaffold Node.js + Express + TypeScript server (`backend/src/app.ts`) with `/api/health` endpoint, CORS, Helmet, and environment configuration.
   * *Commit:* `feat(backend): scaffold express typescript server and health route`
-* **3. Frontend Developer 1 (`frontend`):**
+* **3. Frontend Developer 1 (`frontend-1`):**
   * *Task:* Scaffold React + Vite + TypeScript application shell with Tailwind CSS design tokens, base typography, and responsive container layout.
   * *Commit:* `feat(frontend): initialize react vite typescript shell and design tokens`
-* **4. Frontend Developer 2 (`frontend`):**
+* **4. Frontend Developer 2 (`frontend-2`):**
   * *Task:* Set up React Router DOM routing structure, route constants, and `.env.example` client environment definitions.
   * *Commit:* `feat(frontend): configure client route hierarchy and environment setup`
 * **5. Leader / DevOps Engineer (`devops` & `main`):**
@@ -46,10 +46,10 @@
 * **2. Backend Developer (`backend`):**
   * *Task:* Write `database/migrations/001_users_companies.sql` (`user_role` ENUM, `users` with `firebase_uid` UNIQUE, `companies`) and DB connection pool (`backend/src/config/database.ts`).
   * *Commit:* `feat(db): create users and companies schema migration and db pool`
-* **3. Frontend Developer 1 (`frontend`):**
+* **3. Frontend Developer 1 (`frontend-1`):**
   * *Task:* Build responsive application shell: Navbar, Sidebar navigation drawer, Footer, and role-aware layout wrappers.
   * *Commit:* `feat(ui): build responsive app layout shell and navigation bar`
-* **4. Frontend Developer 2 (`frontend`):**
+* **4. Frontend Developer 2 (`frontend-2`):**
   * *Task:* Create central theme state, layout navigation state hooks, and active route link highlighters.
   * *Commit:* `feat(ui): implement navigation state hooks and active route indicators`
 * **5. Leader / DevOps Engineer (`devops` & `main`):**
@@ -65,10 +65,10 @@
 * **2. Backend Developer (`backend`):**
   * *Task:* Write `002_jobs_candidates_applications.sql` (`jobs`, `candidate_profiles`, `applications`, `resume_metadata`, `application_stage_history`).
   * *Commit:* `feat(db): add jobs candidate_profiles applications and stage history ddl`
-* **3. Frontend Developer 1 (`frontend`):**
+* **3. Frontend Developer 1 (`frontend-1`):**
   * *Task:* Build responsive UI components for form inputs, dropdown selectors, badge indicators, and action buttons.
   * *Commit:* `feat(ui): create reusable form controls badges and modal primitives`
-* **4. Frontend Developer 2 (`frontend`):**
+* **4. Frontend Developer 2 (`frontend-2`):**
   * *Task:* Configure Firebase Web SDK (`frontend/src/config/firebaseClient.ts`) with automatic toggle for local Auth Emulator (`connectAuthEmulator`).
   * *Commit:* `feat(auth-ui): configure firebase client sdk with emulator toggle`
 * **5. Leader / DevOps Engineer (`devops` & `main`):**
@@ -84,10 +84,10 @@
 * **2. Backend Developer (`backend`):**
   * *Task:* Write `003_interviews_offers_notifications.sql` (`interview_events`, `interview_feedback`, `offer_records`, `onboarding_tasks`, `notification_events`).
   * *Commit:* `feat(db): add interviews feedback offers onboarding and notification tables`
-* **3. Frontend Developer 1 (`frontend`):**
+* **3. Frontend Developer 1 (`frontend-1`):**
   * *Task:* Build Login, Registration, and Password Reset screens (`/login`, `/register`) with accessible form fields and error banners.
   * *Commit:* `feat(auth-ui): create login registration and password reset screens`
-* **4. Frontend Developer 2 (`frontend`):**
+* **4. Frontend Developer 2 (`frontend-2`):**
   * *Task:* Wire Firebase client authentication logic: email/password login, Google OAuth popup handler, and form validation schemas.
   * *Commit:* `feat(auth-ui): wire firebase auth sign-in registration and google oauth methods`
 * **5. Leader / DevOps Engineer (`devops` & `main`):**
@@ -103,10 +103,10 @@
 * **2. Backend Developer (`backend`):**
   * *Task:* Implement `authenticateFirebase` and `requireRole` middlewares (`backend/src/middleware/auth.ts`) plus `POST /api/auth/sync` upsert endpoint.
   * *Commit:* `feat(auth-api): implement firebase jwt middleware and sql user sync route`
-* **3. Frontend Developer 1 (`frontend`):**
+* **3. Frontend Developer 1 (`frontend-1`):**
   * *Task:* Build User Profile header menu, avatar displays, role badge tags, and logout confirmation dialog.
   * *Commit:* `feat(ui): build user profile menu avatar and logout confirmation modal`
-* **4. Frontend Developer 2 (`frontend`):**
+* **4. Frontend Developer 2 (`frontend-2`):**
   * *Task:* Build `AuthContext.tsx` and Axios interceptor (`apiClient.ts`) that injects `Authorization: Bearer <idToken>` and caches SQL user role.
   * *Commit:* `feat(auth-ui): implement auth context and axios bearer token interceptor`
 * **5. Leader / DevOps Engineer (`devops` & `main`):**
@@ -122,10 +122,10 @@
 * **2. Backend Developer (`backend`):**
   * *Task:* Implement Admin user management API (`GET /api/admin/users`, `PATCH /api/admin/users/:id/role`, `PUT /api/admin/company`).
   * *Commit:* `feat(admin-api): add user role management and company config endpoints`
-* **3. Frontend Developer 1 (`frontend`):**
+* **3. Frontend Developer 1 (`frontend-1`):**
   * *Task:* Build Page 1: Admin Overview (`/admin`) dashboard UI with user management table, role selection dropdowns, and company settings form.
   * *Commit:* `feat(admin-ui): build admin overview dashboard and company settings view`
-* **4. Frontend Developer 2 (`frontend`):**
+* **4. Frontend Developer 2 (`frontend-2`):**
   * *Task:* Build `<ProtectedRoute allowedRoles={...} />` route wrapper component and wire admin user role modification API calls.
   * *Commit:* `feat(admin-ui): implement protected route guard and admin user management hooks`
 * **5. Leader / DevOps Engineer (`devops` & `main`):**
@@ -141,10 +141,10 @@
 * **2. Backend Developer (`backend`):**
   * *Task:* Add global Express error handler, Zod request validation middleware, and publish `docs/api-spec.md` & `docs/permission-matrix.md`.
   * *Commit:* `feat(backend): add global error handler zod validator and api spec docs`
-* **3. Frontend Developer 1 (`frontend`):**
+* **3. Frontend Developer 1 (`frontend-1`):**
   * *Task:* Add unauthorized (403), not-found (404), and loading skeleton states across all role dashboards; commit UI wireframe diagrams.
   * *Commit:* `feat(ui): add error boundary 403 404 pages and loading skeletons`
-* **4. Frontend Developer 2 (`frontend`):**
+* **4. Frontend Developer 2 (`frontend-2`):**
   * *Task:* Implement global client error notifications (toast system) and offline connectivity detection banners.
   * *Commit:* `feat(ui): add global toast notification provider and network status listener`
 * **5. Leader / DevOps Engineer (`devops` & `main`):**
@@ -162,10 +162,10 @@
 * **2. Backend Developer (`backend`):**
   * *Task:* Implement Job CRUD & lifecycle API (`POST /api/jobs`, `PUT /api/jobs/:id`, `PATCH /api/jobs/:id/status`) restricted to ADMIN and HR.
   * *Commit:* `feat(jobs-api): implement job crud and status transition endpoints`
-* **3. Frontend Developer 1 (`frontend`):**
+* **3. Frontend Developer 1 (`frontend-1`):**
   * *Task:* Build Page 2: Job Management (`/hr/jobs`) UI with job creation/edit modal form, status filter tabs, and action buttons.
   * *Commit:* `feat(jobs-ui): build hr job management dashboard and create edit modal`
-* **4. Frontend Developer 2 (`frontend`):**
+* **4. Frontend Developer 2 (`frontend-2`):**
   * *Task:* Implement job management state hooks, job status transition mutations (Draft, Published, Closed, Archived), and form validation.
   * *Commit:* `feat(jobs-ui): wire job crud state hooks and status transition handlers`
 * **5. Leader / DevOps Engineer (`devops` & `main`):**
@@ -181,10 +181,10 @@
 * **2. Backend Developer (`backend`):**
   * *Task:* Implement paginated `GET /api/jobs` and `GET /api/jobs/:id` supporting keyword search, department/location filters, and applicant counts.
   * *Commit:* `feat(jobs-api): add paginated job listing search and detail endpoints`
-* **3. Frontend Developer 1 (`frontend`):**
+* **3. Frontend Developer 1 (`frontend-1`):**
   * *Task:* Build Candidate Job Board & Job Detail view (`/jobs`, `/jobs/:id`) with search bar, filter dropdowns, job detail cards, and empty states.
   * *Commit:* `feat(jobs-ui): create candidate job board search filters and detail view`
-* **4. Frontend Developer 2 (`frontend`):**
+* **4. Frontend Developer 2 (`frontend-2`):**
   * *Task:* Wire debounced search query params, pagination controls, and query cache for public job listings.
   * *Commit:* `feat(jobs-ui): implement debounced search pagination and job detail hooks`
 * **5. Leader / DevOps Engineer (`devops` & `main`):**
@@ -200,10 +200,10 @@
 * **2. Backend Developer (`backend`):**
   * *Task:* Implement `GET/PUT /api/candidates/me` and Multer resume upload (`POST /api/resumes`) validating 5 MB limit and PDF/DOCX magic bytes.
   * *Commit:* `feat(resume-api): add candidate profile api and magic-byte resume upload`
-* **3. Frontend Developer 1 (`frontend`):**
+* **3. Frontend Developer 1 (`frontend-1`):**
   * *Task:* Build Candidate Profile & Resume Manager section on Page 3: Candidate Dashboard (`/candidate`) with drag-and-drop file upload zone.
   * *Commit:* `feat(candidate-ui): build candidate profile editor and resume upload widget`
-* **4. Frontend Developer 2 (`frontend`):**
+* **4. Frontend Developer 2 (`frontend-2`):**
   * *Task:* Implement client-side file pre-validation (size limit, mime-type), upload progress bar state, and profile update mutations.
   * *Commit:* `feat(candidate-ui): wire resume file upload client validation and progress state`
 * **5. Leader / DevOps Engineer (`devops` & `main`):**
@@ -219,10 +219,10 @@
 * **2. Backend Developer (`backend`):**
   * *Task:* Implement `POST /api/applications` (atomic insert into applications + initial APPLIED audit log) and `GET /api/applications/me`.
   * *Commit:* `feat(apps-api): implement application submission and candidate history api`
-* **3. Frontend Developer 1 (`frontend`):**
+* **3. Frontend Developer 1 (`frontend-1`):**
   * *Task:* Build Application Submission Modal on `/jobs/:id` and Application Status Tracker cards on `/candidate` dashboard.
   * *Commit:* `feat(apps-ui): build job application form modal and candidate status tracker`
-* **4. Frontend Developer 2 (`frontend`):**
+* **4. Frontend Developer 2 (`frontend-2`):**
   * *Task:* Connect application submission mutation, prevent duplicate submission state, and wire resume download trigger.
   * *Commit:* `feat(apps-ui): wire application submission hooks and resume download client`
 * **5. Leader / DevOps Engineer (`devops` & `main`):**
@@ -238,10 +238,10 @@
 * **2. Backend Developer (`backend`):**
   * *Task:* Implement transactional stage machine (`stageMachine.ts`) and `PATCH /api/applications/:id/stage` recording actor & reason in `application_stage_history`.
   * *Commit:* `feat(pipeline-api): build transactional stage state machine and audit log`
-* **3. Frontend Developer 1 (`frontend`):**
+* **3. Frontend Developer 1 (`frontend-1`):**
   * *Task:* Build Page 4: HR Pipeline (`/hr/pipeline`) Kanban board with columns (`Applied`, `Screening`, `Interview`, `Selected`, `Offered`, `Rejected`) and stage change modal.
   * *Commit:* `feat(pipeline-ui): build hr pipeline kanban board and stage transition modal`
-* **4. Frontend Developer 2 (`frontend`):**
+* **4. Frontend Developer 2 (`frontend-2`):**
   * *Task:* Wire Kanban drag-and-drop / select status transitions, audit reason prompt input, and optimistic pipeline cache updates.
   * *Commit:* `feat(pipeline-ui): wire kanban drag-and-drop state and audit reason handler`
 * **5. Leader / DevOps Engineer (`devops` & `main`):**
@@ -257,10 +257,10 @@
 * **2. Backend Developer (`backend`):**
   * *Task:* Implement `GET /api/applications` (filter by `jobId`, `stage`, `search`, `dateRange`, `pagination`) and `GET /api/applications/:id/history`.
   * *Commit:* `feat(pipeline-api): add multi-filter candidate search and audit history api`
-* **3. Frontend Developer 1 (`frontend`):**
+* **3. Frontend Developer 1 (`frontend-1`):**
   * *Task:* Build Candidate Dossier slide-over Drawer on `/hr/pipeline` with full applicant details, resume preview, and timeline activity history.
   * *Commit:* `feat(pipeline-ui): build candidate dossier slide-over drawer and history view`
-* **4. Frontend Developer 2 (`frontend`):**
+* **4. Frontend Developer 2 (`frontend-2`):**
   * *Task:* Implement multi-criteria filter state (job, stage, date, search term), table/Kanban toggle, and dossier data fetching hooks.
   * *Commit:* `feat(pipeline-ui): implement filter state management and dossier data hooks`
 * **5. Leader / DevOps Engineer (`devops` & `main`):**
@@ -276,10 +276,10 @@
 * **2. Backend Developer (`backend`):**
   * *Task:* Document formal status-transition rules in `docs/status-transitions.md` and refine API error codes for invalid pipeline actions.
   * *Commit:* `docs(pipeline): document formal application and job status transition rules`
-* **3. Frontend Developer 1 (`frontend`):**
+* **3. Frontend Developer 1 (`frontend-1`):**
   * *Task:* Polish empty states, error fallbacks, pagination controls, and keyboard accessibility on HR Pipeline and Candidate Dashboard.
   * *Commit:* `fix(ui): polish empty states pagination and accessibility on pipeline views`
-* **4. Frontend Developer 2 (`frontend`):**
+* **4. Frontend Developer 2 (`frontend-2`):**
   * *Task:* Add client-side mutation retry logic and optimistic error rollback for pipeline interactions.
   * *Commit:* `fix(ui): add optimistic UI error rollback and stage action feedback`
 * **5. Leader / DevOps Engineer (`devops` & `main`):**
@@ -297,10 +297,10 @@
 * **2. Backend Developer (`backend`):**
   * *Task:* Implement `POST /api/interviews` and `GET /api/interviews` with interviewer time-slot conflict validation and automatic stage check.
   * *Commit:* `feat(interviews-api): implement interview scheduling and conflict check api`
-* **3. Frontend Developer 1 (`frontend`):**
+* **3. Frontend Developer 1 (`frontend-1`):**
   * *Task:* Build Page 5: Interviews (`/hr/interviews` & `/candidate/interviews`) with calendar/list toggle and Schedule Interview modal form.
   * *Commit:* `feat(interviews-ui): build interview calendar list view and scheduling modal`
-* **4. Frontend Developer 2 (`frontend`):**
+* **4. Frontend Developer 2 (`frontend-2`):**
   * *Task:* Wire interview scheduling form validation, interviewer conflict error alerts, and interview list state management.
   * *Commit:* `feat(interviews-ui): wire interview form validation and conflict error handling`
 * **5. Leader / DevOps Engineer (`devops` & `main`):**
@@ -316,10 +316,10 @@
 * **2. Backend Developer (`backend`):**
   * *Task:* Implement `PATCH /api/interviews/:id` (reschedule/cancel with `reschedule_count++`) and `POST/GET /api/interviews/:id/feedback` (hidden from Candidates).
   * *Commit:* `feat(interviews-api): add reschedule cancel and confidential feedback routes`
-* **3. Frontend Developer 1 (`frontend`):**
+* **3. Frontend Developer 1 (`frontend-1`):**
   * *Task:* Build Reschedule/Cancel modal and Structured Interview Feedback Scorecard form (1–5 ratings, strengths, concerns, decision) for HR/Admin.
   * *Commit:* `feat(interviews-ui): build reschedule modal and evaluator feedback scorecard`
-* **4. Frontend Developer 2 (`frontend`):**
+* **4. Frontend Developer 2 (`frontend-2`):**
   * *Task:* Wire scorecard submission hook, candidate confidential view protection (hiding scorecards on candidate portal), and reschedule mutation.
   * *Commit:* `feat(interviews-ui): wire scorecard submission and candidate role view isolation`
 * **5. Leader / DevOps Engineer (`devops` & `main`):**
@@ -335,10 +335,10 @@
 * **2. Backend Developer (`backend`):**
   * *Task:* Build `notificationService.ts` with exponential backoff retry (up to 2 retries) logging every attempt into `notification_events`.
   * *Commit:* `feat(notify-api): implement email notification service with retry and db log`
-* **3. Frontend Developer 1 (`frontend`):**
+* **3. Frontend Developer 1 (`frontend-1`):**
   * *Task:* Build Notification Log & Delivery Status viewer component in Admin/HR views showing SENT, FAILED, `retry_count`, and SIMULATED badge.
   * *Commit:* `feat(notify-ui): build notification delivery log table and mode indicator`
-* **4. Frontend Developer 2 (`frontend`):**
+* **4. Frontend Developer 2 (`frontend-2`):**
   * *Task:* Wire in-app notification bell, unread badge counter, and mark-as-read API actions for all roles.
   * *Commit:* `feat(notify-ui): wire in-app notification bell and unread status handler`
 * **5. Leader / DevOps Engineer (`devops` & `main`):**
@@ -354,10 +354,10 @@
 * **2. Backend Developer (`backend`):**
   * *Task:* Build `offerTemplateService.ts` (escaping & injecting role, salary, start date) and `POST /api/offers`, `PATCH /api/offers/:id/issue`.
   * *Commit:* `feat(offers-api): build template offer letter generator and issue endpoint`
-* **3. Frontend Developer 1 (`frontend`):**
+* **3. Frontend Developer 1 (`frontend-1`):**
   * *Task:* Build HR view of Page 6: Offers & Onboarding (`/hr/offers`) with template composer, live offer preview frame, and Issue Offer dialog.
   * *Commit:* `feat(offers-ui): build hr offer letter composer and live template preview`
-* **4. Frontend Developer 2 (`frontend`):**
+* **4. Frontend Developer 2 (`frontend-2`):**
   * *Task:* Implement offer compensation input validation (positive integer salary, future start date) and issue offer mutation hook.
   * *Commit:* `feat(offers-ui): wire offer form validation and offer issuance mutation`
 * **5. Leader / DevOps Engineer (`devops` & `main`):**
@@ -373,10 +373,10 @@
 * **2. Backend Developer (`backend`):**
   * *Task:* Implement `POST /api/offers/:id/respond` (ACCEPTED/DECLINED by owner Candidate) auto-spawning `onboarding_tasks`, plus `PATCH /api/onboarding/:id`.
   * *Commit:* `feat(onboarding-api): add candidate offer response and onboarding task api`
-* **3. Frontend Developer 1 (`frontend`):**
+* **3. Frontend Developer 1 (`frontend-1`):**
   * *Task:* Build Candidate Offer Review card (Accept/Decline actions) and interactive Onboarding Checklist on `/candidate/offers`.
   * *Commit:* `feat(onboarding-ui): build candidate offer response portal and task checklist`
-* **4. Frontend Developer 2 (`frontend`):**
+* **4. Frontend Developer 2 (`frontend-2`):**
   * *Task:* Wire offer response confirmation dialog, digital signature checkbox, and onboarding task toggle state handlers.
   * *Commit:* `feat(onboarding-ui): wire offer response actions and onboarding task toggle state`
 * **5. Leader / DevOps Engineer (`devops` & `main`):**
@@ -392,10 +392,10 @@
 * **2. Backend Developer (`backend`):**
   * *Task:* Implement unified `GET /api/activity` endpoint aggregating stage transitions, interview events, offer status changes, and email dispatches.
   * *Commit:* `feat(activity-api): implement unified activity history aggregation endpoint`
-* **3. Frontend Developer 1 (`frontend`):**
+* **3. Frontend Developer 1 (`frontend-1`):**
   * *Task:* Build reusable Activity Timeline UI component with event badges, user timestamps, and detail expanders.
   * *Commit:* `feat(activity-ui): create visual activity timeline component with event icons`
-* **4. Frontend Developer 2 (`frontend`):**
+* **4. Frontend Developer 2 (`frontend-2`):**
   * *Task:* Embed real-time Activity Timeline into Admin Overview (`/admin`) and HR Candidate Dossier drawer with pagination hooks.
   * *Commit:* `feat(activity-ui): embed unified activity timeline in admin and hr views`
 * **5. Leader / DevOps Engineer (`devops` & `main`):**
@@ -411,10 +411,10 @@
 * **2. Backend Developer (`backend`):**
   * *Task:* Audit all Week 3 endpoints for edge cases (e.g., double offer acceptance, feedback on cancelled interviews) and document mock email mode.
   * *Commit:* `fix(backend): harden edge cases on interview and offer state transitions`
-* **3. Frontend Developer 1 (`frontend`):**
+* **3. Frontend Developer 1 (`frontend-1`):**
   * *Task:* Refine responsive mobile/tablet layouts for Interview Calendar, Offer Letter preview, and Onboarding Checklist.
   * *Commit:* `style(ui): refine responsive layout for interview calendar and offer views`
-* **4. Frontend Developer 2 (`frontend`):**
+* **4. Frontend Developer 2 (`frontend-2`):**
   * *Task:* Perform client state audit: verify zero stale cache on interview reschedule and instant status badge updates.
   * *Commit:* `fix(ui): audit interview and offer cache invalidation rules`
 * **5. Leader / DevOps Engineer (`devops` & `main`):**
@@ -432,10 +432,10 @@
 * **2. Backend Developer (`backend`):**
   * *Task:* Implement `GET /api/analytics/summary` computing Application count, Stage Conversion rates, Time-to-Hire (days), Interview Reliability, and Offer Acceptance.
   * *Commit:* `feat(analytics-api): implement sql hiring kpi aggregation with filters`
-* **3. Frontend Developer 1 (`frontend`):**
+* **3. Frontend Developer 1 (`frontend-1`):**
   * *Task:* Build Page 7: Hiring Analytics (`/hr/analytics`) UI with KPI summary cards, stage conversion funnel bar charts, and time-to-hire metrics.
   * *Commit:* `feat(analytics-ui): build hiring analytics dashboard charts and layout`
-* **4. Frontend Developer 2 (`frontend`):**
+* **4. Frontend Developer 2 (`frontend-2`):**
   * *Task:* Wire Job, Date range, and Department analytics filter controls with chart tooltips explaining KPI mathematical formulas.
   * *Commit:* `feat(analytics-ui): wire analytics filter controls and formula explanation tooltips`
 * **5. Leader / DevOps Engineer (`devops` & `main`):**
@@ -451,10 +451,10 @@
 * **2. Backend Developer (`backend`):**
   * *Task:* Audit every controller for strict SQL parameterization, XSS HTML escaping in offer templates, and consistent 401/403/404/422 error payloads.
   * *Commit:* `security(backend): enforce strict html escaping and input validation rules`
-* **3. Frontend Developer 1 (`frontend`):**
+* **3. Frontend Developer 1 (`frontend-1`):**
   * *Task:* Add session-expiry auto-logout modal, client file-type/size pre-checks, and UI sanitization against raw HTML rendering.
   * *Commit:* `feat(ui): add session expiry modal and client upload sanitization`
-* **4. Frontend Developer 2 (`frontend`):**
+* **4. Frontend Developer 2 (`frontend-2`):**
   * *Task:* Implement automatic token refresh listener, clear auth storage on 401 response, and sanitize query parameter inputs.
   * *Commit:* `feat(auth-ui): add token refresh listener and automatic auth state purge`
 * **5. Leader / DevOps Engineer (`devops` & `main`):**
@@ -470,10 +470,10 @@
 * **2. Backend Developer (`backend`):**
   * *Task:* Add `/api/health/readiness` checking PostgreSQL + Firebase Admin connectivity and export Postman/OpenAPI collection in `docs/openapi.json`.
   * *Commit:* `feat(backend): add readiness probe endpoint and openapi collection export`
-* **3. Frontend Developer 1 (`frontend`):**
+* **3. Frontend Developer 1 (`frontend-1`):**
   * *Task:* Capture high-resolution screenshots of all 7 role dashboards for submission documentation and presentation slides.
   * *Commit:* `docs(ui): capture high-resolution screenshots of all 7 role dashboards`
-* **4. Frontend Developer 2 (`frontend`):**
+* **4. Frontend Developer 2 (`frontend-2`):**
   * *Task:* Configure production build optimizations (code-splitting, lazy route imports, bundle visualizer analysis).
   * *Commit:* `chore(frontend): optimize production bundle chunk splitting and lazy routes`
 * **5. Leader / DevOps Engineer (`devops` & `main`):**
@@ -489,10 +489,10 @@
 * **2. Backend Developer (`backend`):**
   * *Task:* Write `docs/final-report.md` detailing architecture decisions, RBAC enforcement, KPI mathematical definitions, known gaps, and future work.
   * *Commit:* `docs(report): author final engineering design and security controls report`
-* **3. Frontend Developer 1 (`frontend`):**
+* **3. Frontend Developer 1 (`frontend-1`):**
   * *Task:* Finalize technical presentation slide deck outline (`docs/presentation-walkthrough.md`) with demo credentials for Admin, HR, and Candidate.
   * *Commit:* `docs(demo): add role-by-role demo walkthrough and presentation guide`
-* **4. Frontend Developer 2 (`frontend`):**
+* **4. Frontend Developer 2 (`frontend-2`):**
   * *Task:* Add interactive system tour walkthrough tooltips and demo credentials auto-fill button on the login screen for review testing.
   * *Commit:* `feat(demo-ui): add quick-fill demo credentials helper for review testing`
 * **5. Leader / DevOps Engineer (`devops` & `main`):**
