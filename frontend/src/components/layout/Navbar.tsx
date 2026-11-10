@@ -47,7 +47,7 @@ export const Navbar: React.FC = () => {
               <div className="leading-tight">
                 <span className="text-brand-600">Smart</span>ATS
                 <span className="hidden sm:inline-block ml-2 text-xs font-semibold px-2 py-0.5 rounded-full bg-brand-50 text-brand-700 border border-brand-200">
-                  v0.1.0 Day 1
+                  Floor 2 (Database & App Shell)
                 </span>
               </div>
             </Link>
@@ -73,8 +73,14 @@ export const Navbar: React.FC = () => {
             })}
           </nav>
 
-          {/* Auth Actions */}
-          <div className="hidden md:flex items-center gap-2">
+          {/* Auth Actions & Role Preview Indicator */}
+          <div className="hidden md:flex items-center gap-3">
+            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-slate-100 border border-slate-200 text-xs font-medium text-slate-700">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+              <span>Role:</span>
+              <span className="font-semibold text-brand-600">Active</span>
+            </div>
+
             <Link
               to={ROUTES.LOGIN}
               className="inline-flex items-center gap-1.5 px-3.5 py-2 text-sm font-medium text-slate-700 hover:text-brand-600 hover:bg-slate-100 rounded-lg transition"
