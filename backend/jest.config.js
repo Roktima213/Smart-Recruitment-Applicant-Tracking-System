@@ -1,3 +1,4 @@
+/** @type {import('ts-jest').JestConfigWithTsJest} */
 module.exports = {
   preset: 'ts-jest',
   testEnvironment: 'node',
@@ -5,6 +6,7 @@ module.exports = {
   verbose: true,
   forceExit: true,
   clearMocks: true,
-  resetMocks: true,
-  restoreMocks: true,
+  testTimeout: 10000,
+  moduleFileExtensions: ['ts', 'js', 'json'],
+  coveragePathIgnorePatterns: ['/node_modules/', '/dist/'],
 };
