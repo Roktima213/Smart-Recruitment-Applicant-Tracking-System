@@ -87,6 +87,17 @@ describe('Backend Server - Base Endpoints', () => {
     expect(res.headers['access-control-allow-credentials']).toBe('true');
   });
 
+  it('CORS rejection should return 403 Forbidden with clean error response for untrusted origin', async () => {
+    const res = await request(app)
+      .get('/api/health')
+      .set('Origin', 'https://malicious-hacker.com');
+
+    expect(res.status).toBe(403);
+    expect(res.body).toHaveProperty('success', false);
+    expect(res.body.error).toHaveProperty('statusCode', 403);
+    expect(res.body.error.message).toContain('Origin not allowed by CORS');
+  });
+
   it('POST with malformed JSON body returns 400 Bad Request via error handler', async () => {
     const res = await request(app)
       .post('/api/health')
@@ -96,5 +107,26 @@ describe('Backend Server - Base Endpoints', () => {
     expect(res.status).toBe(400);
     expect(res.body).toHaveProperty('success', false);
     expect(res.body.error).toHaveProperty('statusCode', 400);
+  });
+
+  it('SEC-04: Global error handler sanitizes internal 500 errors in production mode', async () => {
+    const originalEnv = process.env.NODE_ENV;
+    process.env.NODE_ENV = 'production';
+
+    // Simulate an unexpected internal failure in health check
+    mockCheckDatabaseConnection.mockRejectedValueOnce(
+      new Error('FATAL: password authentication failed for user "postgres" with table schema leak')
+    );
+
+    const res = await request(app).get('/api/health');
+
+    // Restore env immediately
+    process.env.NODE_ENV = originalEnv;
+
+    expect(res.status).toBe(503);
+    expect(res.body.success).toBe(false);
+    // Ensure DB internal connection leak / SQL details are NOT exposed
+    expect(JSON.stringify(res.body)).not.toContain('table schema leak');
+    expect(JSON.stringify(res.body)).not.toContain('password authentication');
   });
 });

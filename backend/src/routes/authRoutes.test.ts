@@ -298,10 +298,10 @@ describe('Auth & RBAC Routes (/api/auth)', () => {
 
       expect(res.status).toBe(200);
       expect(res.body.user).toHaveProperty('role', 'HR'); // retained existing role
-      // Check that update linked the new firebase_uid to the existing record id
       const updateArgs = mockQuery.mock.calls[1][1];
       expect(updateArgs[0]).toBe('new-firebase-uid-777');
-      expect(updateArgs[5]).toBe('existing-db-id-123');
+      expect(updateArgs[5]).toBe('HR'); // targetRole retained
+      expect(updateArgs[6]).toBe('existing-db-id-123'); // WHERE id = $7
     });
 
     it('SEC-03: should return 403 Forbidden if user account is deactivated in DB', async () => {
@@ -394,6 +394,106 @@ describe('Auth & RBAC Routes (/api/auth)', () => {
       expect(res.status).toBe(200);
       const insertSqlArgs = mockQuery.mock.calls[1][1];
       expect(insertSqlArgs[4]).toBeNull(); // sanitized to null
+    });
+
+    it('SEC-01 (Adversarial): should preserve assigned company_id and prevent cross-tenant override', async () => {
+      mockVerifyFirebaseIdToken.mockResolvedValueOnce({
+        uid: 'victim-uid-1',
+        email: 'employee@corp-a.com',
+      });
+
+      // Existing employee already belongs to Corp A (company_id: 'aaaa-...')
+      mockQuery.mockResolvedValueOnce({
+        rows: [
+          {
+            id: 'user-db-uuid-1',
+            firebase_uid: 'victim-uid-1',
+            email: 'employee@corp-a.com',
+            full_name: 'Corp A Employee',
+            role: 'CANDIDATE',
+            company_id: 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
+            is_active: true,
+          },
+        ],
+      });
+
+      mockQuery.mockResolvedValueOnce({
+        rows: [
+          {
+            id: 'user-db-uuid-1',
+            firebase_uid: 'victim-uid-1',
+            email: 'employee@corp-a.com',
+            full_name: 'Corp A Employee',
+            role: 'CANDIDATE',
+            company_id: 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', // retained
+            is_active: true,
+          },
+        ],
+      });
+
+      mockSyncUserClaims.mockResolvedValueOnce({ success: true });
+
+      // Attacker tries to hijack tenant to Corp B
+      const res = await request(app)
+        .post('/api/auth/sync')
+        .set('Authorization', 'Bearer valid-token')
+        .send({
+          companyId: 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb',
+        });
+
+      expect(res.status).toBe(200);
+      const updateSql = mockQuery.mock.calls[1][0];
+      // Verify SQL contains COALESCE(users.company_id, $5)
+      expect(updateSql).toContain('COALESCE(users.company_id, $5)');
+    });
+
+    it('SEC-01: should automatically elevate existing CANDIDATE account to ADMIN if added to BOOTSTRAP_ADMIN_EMAILS', async () => {
+      process.env.BOOTSTRAP_ADMIN_EMAILS = 'bootstrap.owner@company.com';
+
+      mockVerifyFirebaseIdToken.mockResolvedValueOnce({
+        uid: 'owner-uid',
+        email: 'bootstrap.owner@company.com',
+      });
+
+      // User already exists in DB as CANDIDATE prior to being added to env
+      mockQuery.mockResolvedValueOnce({
+        rows: [
+          {
+            id: 'owner-db-uuid',
+            firebase_uid: 'owner-uid',
+            email: 'bootstrap.owner@company.com',
+            full_name: 'Future Admin',
+            role: 'CANDIDATE',
+            company_id: null,
+            is_active: true,
+          },
+        ],
+      });
+
+      mockQuery.mockResolvedValueOnce({
+        rows: [
+          {
+            id: 'owner-db-uuid',
+            firebase_uid: 'owner-uid',
+            email: 'bootstrap.owner@company.com',
+            full_name: 'Future Admin',
+            role: 'ADMIN',
+            company_id: null,
+            is_active: true,
+          },
+        ],
+      });
+
+      mockSyncUserClaims.mockResolvedValueOnce({ success: true });
+
+      const res = await request(app)
+        .post('/api/auth/sync')
+        .set('Authorization', 'Bearer owner-token')
+        .send({});
+
+      expect(res.status).toBe(200);
+      const updateArgs = mockQuery.mock.calls[1][1];
+      expect(updateArgs[5]).toBe('ADMIN'); // Elevated to ADMIN
     });
   });
 

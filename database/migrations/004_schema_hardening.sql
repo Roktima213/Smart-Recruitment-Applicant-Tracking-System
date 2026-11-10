@@ -10,7 +10,7 @@ DO $$ BEGIN
     ) THEN
         ALTER TABLE jobs
         ADD CONSTRAINT check_jobs_salary_positive
-        CHECK (salary_min IS NULL OR salary_min >= 0);
+        CHECK ((salary_min IS NULL OR salary_min >= 0) AND (salary_max IS NULL OR salary_max >= 0));
     END IF;
 END $$;
 
@@ -31,7 +31,7 @@ DO $$ BEGIN
     ) THEN
         ALTER TABLE candidate_profiles
         ADD CONSTRAINT check_candidate_experience_positive
-        CHECK (experience_years >= 0);
+        CHECK (experience_years IS NULL OR experience_years >= 0);
     END IF;
 END $$;
 
@@ -42,7 +42,7 @@ DO $$ BEGIN
     ) THEN
         ALTER TABLE interview_events
         ADD CONSTRAINT check_interview_reschedule_positive
-        CHECK (reschedule_count >= 0);
+        CHECK (reschedule_count IS NULL OR reschedule_count >= 0);
     END IF;
 END $$;
 
@@ -65,3 +65,7 @@ DROP INDEX IF EXISTS idx_applications_job_id;
 -- 7. Add missing index on foreign key applications(resume_id)
 CREATE INDEX IF NOT EXISTS idx_applications_resume_id
 ON applications(resume_id);
+
+-- 8. Compatibility aliases: provide job_offers and interviews views for standard query access
+CREATE OR REPLACE VIEW job_offers AS SELECT * FROM offer_records;
+CREATE OR REPLACE VIEW interviews AS SELECT * FROM interview_events;

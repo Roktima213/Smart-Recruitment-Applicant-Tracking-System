@@ -108,7 +108,13 @@ export async function syncUser(req: Request, res: Response): Promise<void> {
       }
 
       // Existing user: preserve assigned role and company_id to prevent client-side privilege escalation (SEC-01)
+      // If user's email is in BOOTSTRAP_ADMIN_EMAILS, elevate them to ADMIN; otherwise preserve their existing DB role.
+      const bootstrapAdmins = getBootstrapAdminEmails();
+      const shouldElevateToAdmin = bootstrapAdmins.includes(email.toLowerCase()) && existingUser.role !== 'ADMIN';
+      const targetRole = shouldElevateToAdmin ? 'ADMIN' : existingUser.role;
+
       // Update firebase_uid if it changed (linking email collision, SEC-02)
+      // Retain existing company_id: only set if users.company_id was null!
       const updateSql = `
         UPDATE users
         SET
@@ -116,9 +122,10 @@ export async function syncUser(req: Request, res: Response): Promise<void> {
           email = $2,
           full_name = COALESCE(NULLIF($3, ''), users.full_name),
           avatar_url = COALESCE(NULLIF($4, ''), users.avatar_url),
-          company_id = COALESCE($5, users.company_id),
+          company_id = COALESCE(users.company_id, $5),
+          role = $6,
           updated_at = NOW()
-        WHERE id = $6
+        WHERE id = $7
         RETURNING id, firebase_uid, email, full_name, role, company_id, avatar_url, is_active, created_at, updated_at;
       `;
       const updateRes = await query(updateSql, [
@@ -127,6 +134,7 @@ export async function syncUser(req: Request, res: Response): Promise<void> {
         fullName,
         avatarUrl,
         companyId,
+        targetRole,
         existingUser.id,
       ]);
       dbUser = updateRes.rows[0];

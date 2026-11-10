@@ -4,7 +4,6 @@ import { ROUTES } from '../constants/routes';
 import { LogIn, Mail, Lock, ShieldCheck, AlertCircle, CheckCircle2 } from 'lucide-react';
 import { Button, Input, Modal, Badge } from '../components/ui';
 import { useAuth } from '../context/AuthContext';
-import { resetPassword } from '../services/authService';
 
 export const LoginPage: React.FC = () => {
   const [email, setEmail] = useState('');
@@ -19,7 +18,7 @@ export const LoginPage: React.FC = () => {
   const [resetLoading, setResetLoading] = useState(false);
   const [resetStatus, setResetStatus] = useState<string | null>(null);
 
-  const { signIn, signInWithGoogle } = useAuth();
+  const { signIn, signInWithGoogle, resetPassword } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const from = (location.state as any)?.from?.pathname || ROUTES.HOME;

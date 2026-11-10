@@ -6,6 +6,7 @@ import {
   registerWithEmail,
   loginWithGoogle,
   logoutUser,
+  resetPassword as resetPasswordApi,
 } from '../services/authService';
 import { syncUserWithBackend, fetchCurrentUserProfile } from '../services/apiClient';
 
@@ -31,6 +32,7 @@ export interface AuthContextType {
   signUp: (email: string, pass: string, fullName: string, role?: string) => Promise<void>;
   signInWithGoogle: (role?: string) => Promise<void>;
   signOut: () => Promise<void>;
+  resetPassword: (email: string) => Promise<void>;
   refreshProfile: () => Promise<void>;
 }
 
@@ -186,6 +188,16 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
 
+  const resetPassword = async (email: string): Promise<void> => {
+    setError(null);
+    try {
+      await resetPasswordApi(email);
+    } catch (err: any) {
+      setError(err.message || 'Failed to send password reset');
+      throw err;
+    }
+  };
+
   const refreshProfile = async (): Promise<void> => {
     if (auth.currentUser) {
       await syncProfile(auth.currentUser);
@@ -206,6 +218,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         signUp,
         signInWithGoogle,
         signOut,
+        resetPassword,
         refreshProfile,
       }}
     >

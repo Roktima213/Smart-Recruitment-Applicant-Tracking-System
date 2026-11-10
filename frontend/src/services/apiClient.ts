@@ -55,6 +55,7 @@ export async function syncUserWithBackend(userData?: {
   fullName?: string;
   role?: string;
   avatarUrl?: string;
+  companyId?: string | null;
 }) {
   const response = await apiClient.post('/auth/sync', userData || {});
   return response.data;

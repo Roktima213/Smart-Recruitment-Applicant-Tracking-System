@@ -18,18 +18,24 @@ app.use(helmet());
 const rawFrontendUrls = process.env.FRONTEND_URL || 'http://localhost:5173';
 const allowedOrigins = rawFrontendUrls
   .split(',')
-  .map((origin) => origin.trim())
+  .map((origin) => origin.trim().replace(/\/+$/, ''))
   .filter(Boolean);
 
 app.use(
   cors({
     origin: (origin, callback) => {
       // Allow server-to-server, curl, mobile, and same-origin requests (where origin is undefined)
-      if (!origin || allowedOrigins.includes(origin)) {
-        callback(null, true);
-      } else {
-        callback(new Error(`Origin ${origin} not allowed by CORS`));
+      if (!origin) {
+        return callback(null, true);
       }
+      const normalizedOrigin = origin.replace(/\/+$/, '');
+      if (allowedOrigins.includes(normalizedOrigin)) {
+        return callback(null, true);
+      }
+      const corsError: Error & { status?: number; statusCode?: number } = new Error(`Origin ${origin} not allowed by CORS`);
+      corsError.status = 403;
+      corsError.statusCode = 403;
+      callback(corsError);
     },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
@@ -106,6 +112,18 @@ app.use((req: Request, res: Response) => {
 app.use((err: Error & { status?: number; statusCode?: number }, _req: Request, res: Response, next: NextFunction) => {
   if (res.headersSent) {
     return next(err);
+  }
+
+  // Handle CORS rejection explicitly with 403 Forbidden
+  if (err.message && err.message.includes('not allowed by CORS')) {
+    res.status(403).json({
+      success: false,
+      error: {
+        message: 'Origin not allowed by CORS',
+        statusCode: 403,
+      },
+    });
+    return;
   }
 
   const rawStatus = err.statusCode || err.status || 500;
