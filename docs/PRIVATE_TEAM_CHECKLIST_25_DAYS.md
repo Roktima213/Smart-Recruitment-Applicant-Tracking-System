@@ -89,15 +89,15 @@ Establish Schema / API Contract               Build UI & State using Mock Data (
 ---
 
 #### 🔹 Day 3 (Floor 3): Jobs, Candidate Profiles & Applications Schema
-* [ ] **Cloud:** `feat(cloud): configure private resume storage paths and iam rules`
+* [x] **Cloud:** `feat(cloud): configure private resume storage paths and iam rules`
   * Configure private resume directory permissions, `UPLOAD_DIR`, and `MAX_UPLOAD_BYTES` (5 MB).
-* [ ] **Backend:** `feat(db): add jobs candidate_profiles applications and stage history ddl`
+* [x] **Backend:** `feat(db): add jobs candidate_profiles applications and stage history ddl`
   * Create `database/migrations/002_jobs_candidates_applications.sql` (foreign keys, timestamps, stage history).
-* [ ] **Frontend 1:** `feat(ui): create reusable form controls badges and modal primitives`
+* [x] **Frontend 1:** `feat(ui): create reusable form controls badges and modal primitives`
   * Create UI primitive components: Input, Select, Button, Status Badge, and Modal wrapper.
-* [ ] **Frontend 2:** `feat(auth-ui): configure firebase client sdk with emulator toggle`
+* [x] **Frontend 2:** `feat(auth-ui): configure firebase client sdk with emulator toggle`
   * Wire `frontend/src/config/firebaseClient.ts` with `connectAuthEmulator` localhost switch.
-* [ ] **Leader / DevOps:** `ci(db): add automated sql migration runner script to ci pipeline`
+* [x] **Leader / DevOps:** `ci(db): add automated sql migration runner script to ci pipeline`
   * Write automated migration runner script (`scripts/migrate.ps1` / `.sh`) and wire into CI.
 * **Daily Done Criteria:** Tables `jobs`, `candidate_profiles`, `applications` migrate cleanly; Firebase client SDK connects to emulator.
 
