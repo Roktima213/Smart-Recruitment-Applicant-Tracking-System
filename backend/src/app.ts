@@ -2,6 +2,7 @@ import express, { Request, Response, NextFunction, Application } from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import dotenv from 'dotenv';
+import { checkDatabaseConnection } from './config/database';
 
 // Load environment variables
 dotenv.config();
@@ -13,11 +14,23 @@ const app: Application = express();
 // Security Middleware
 app.use(helmet());
 
-// CORS Configuration
-const allowedOrigin = process.env.FRONTEND_URL || 'http://localhost:5173';
+// Multi-Origin CORS Configuration (BUG-07)
+const rawFrontendUrls = process.env.FRONTEND_URL || 'http://localhost:5173';
+const allowedOrigins = rawFrontendUrls
+  .split(',')
+  .map((origin) => origin.trim())
+  .filter(Boolean);
+
 app.use(
   cors({
-    origin: allowedOrigin,
+    origin: (origin, callback) => {
+      // Allow server-to-server, curl, mobile, and same-origin requests (where origin is undefined)
+      if (!origin || allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error(`Origin ${origin} not allowed by CORS`));
+      }
+    },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
@@ -53,13 +66,25 @@ app.get('/', (_req: Request, res: Response) => {
   });
 });
 
-// Health check endpoint
-app.get('/api/health', (_req: Request, res: Response) => {
-  res.status(200).json({
-    success: true,
-    message: 'Smart ATS Backend is running',
-    status: 'healthy',
-  });
+// Dynamic Health check endpoint with database probe (BUG-05)
+app.get('/api/health', async (_req: Request, res: Response) => {
+  try {
+    const dbStatus = await checkDatabaseConnection();
+    const isHealthy = dbStatus.connected;
+
+    res.status(isHealthy ? 200 : 503).json({
+      success: isHealthy,
+      message: isHealthy ? 'Smart ATS Backend is running' : 'Database connection degraded',
+      status: isHealthy ? 'healthy' : 'degraded',
+      ...(process.env.NODE_ENV !== 'production' && { latencyMs: dbStatus.latencyMs }),
+    });
+  } catch {
+    res.status(503).json({
+      success: false,
+      message: 'Database health check failed',
+      status: 'degraded',
+    });
+  }
 });
 
 // Authentication and RBAC endpoints
@@ -76,7 +101,7 @@ app.use((req: Request, res: Response) => {
   });
 });
 
-// Global Error Handler
+// Global Error Handler with production sanitization (SEC-04)
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 app.use((err: Error & { status?: number; statusCode?: number }, _req: Request, res: Response, next: NextFunction) => {
   if (res.headersSent) {
@@ -92,10 +117,16 @@ app.use((err: Error & { status?: number; statusCode?: number }, _req: Request, r
     console.error(err.stack);
   }
 
+  // Prevent leaking internal SQL queries, DB connection errors, or stack traces in production (SEC-04)
+  let safeMessage = err.message || 'Internal Server Error';
+  if (!isDevelopment && statusCode >= 500) {
+    safeMessage = 'An unexpected internal server error occurred';
+  }
+
   res.status(statusCode).json({
     success: false,
     error: {
-      message: err.message || 'Internal Server Error',
+      message: safeMessage,
       statusCode,
       ...(isDevelopment && { stack: err.stack }),
     },

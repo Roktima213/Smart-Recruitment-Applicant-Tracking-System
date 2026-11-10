@@ -1,3 +1,11 @@
+const mockCheckDatabaseConnection = jest.fn();
+
+jest.mock('./config/database', () => ({
+  query: jest.fn(),
+  checkDatabaseConnection: () => mockCheckDatabaseConnection(),
+  closeDatabasePool: jest.fn().mockResolvedValue(undefined),
+}));
+
 jest.mock('./config/firebaseAdmin', () => ({
   verifyFirebaseIdToken: jest.fn().mockResolvedValue({ uid: 'test-user', email: 'test@example.com' }),
   setCustomClaims: jest.fn().mockResolvedValue(undefined),
@@ -13,7 +21,12 @@ import request from 'supertest';
 import app from './app';
 
 describe('Backend Server - Base Endpoints', () => {
-  it('GET /api/health should return 200 with status healthy and expected response', async () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockCheckDatabaseConnection.mockResolvedValue({ connected: true, latencyMs: 5 });
+  });
+
+  it('GET /api/health should return 200 with status healthy when database is connected', async () => {
     const res = await request(app).get('/api/health');
 
     expect(res.status).toBe(200);
@@ -21,6 +34,21 @@ describe('Backend Server - Base Endpoints', () => {
       success: true,
       message: 'Smart ATS Backend is running',
       status: 'healthy',
+      latencyMs: 5,
+    });
+  });
+
+  it('GET /api/health should return 503 with degraded status when database is disconnected', async () => {
+    mockCheckDatabaseConnection.mockResolvedValueOnce({ connected: false, latencyMs: 15 });
+
+    const res = await request(app).get('/api/health');
+
+    expect(res.status).toBe(503);
+    expect(res.body).toEqual({
+      success: false,
+      message: 'Database connection degraded',
+      status: 'degraded',
+      latencyMs: 15,
     });
   });
 

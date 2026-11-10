@@ -1,4 +1,5 @@
 import { Request, Response } from 'express';
+import { z } from 'zod';
 import { query } from '../config/database';
 import { syncUserClaims } from '../services/claimsSyncService';
 
@@ -23,6 +24,29 @@ function normalizeDbRole(role?: string): DbRole {
   return 'CANDIDATE';
 }
 
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+function isValidUuid(id: unknown): id is string {
+  return typeof id === 'string' && UUID_REGEX.test(id.trim());
+}
+
+/**
+ * Zod validation schema for /api/auth/sync inputs
+ */
+const syncInputSchema = z.object({
+  fullName: z.string().trim().max(255).optional(),
+  companyId: z.string().trim().optional().nullable(),
+  avatarUrl: z.string().trim().max(2048).optional().nullable(),
+});
+
+function getBootstrapAdminEmails(): string[] {
+  const envEmails = process.env.BOOTSTRAP_ADMIN_EMAILS || '';
+  return envEmails
+    .split(',')
+    .map((e) => e.trim().toLowerCase())
+    .filter(Boolean);
+}
+
 /**
  * POST /api/auth/sync
  * Synchronizes Firebase authenticated user account with PostgreSQL users table
@@ -31,7 +55,9 @@ function normalizeDbRole(role?: string): DbRole {
 export async function syncUser(req: Request, res: Response): Promise<void> {
   try {
     const uid = req.user?.uid;
-    const email = req.user?.email || req.body.email;
+    // Guard against malformed or non-object req.body (BUG-08)
+    const rawBody = (req.body && typeof req.body === 'object' && !Array.isArray(req.body)) ? req.body : {};
+    const email = req.user?.email || (typeof rawBody.email === 'string' ? rawBody.email.trim() : undefined);
 
     if (!uid || !email) {
       res.status(400).json({
@@ -41,27 +67,91 @@ export async function syncUser(req: Request, res: Response): Promise<void> {
       return;
     }
 
-    const fullName = req.body.fullName || req.user?.name || email.split('@')[0] || 'ATS User';
-    const rawRole = req.body.role || req.user?.role;
-    const role = normalizeDbRole(rawRole);
-    const companyId = req.body.companyId || null;
-    const avatarUrl = req.body.avatarUrl || req.user?.picture || null;
+    // Validate inputs with Zod
+    const parseResult = syncInputSchema.safeParse(rawBody);
+    const validatedData = parseResult.success ? parseResult.data : {};
 
-    // Upsert into users table
-    const sql = `
-      INSERT INTO users (firebase_uid, email, full_name, role, company_id, avatar_url, updated_at)
-      VALUES ($1, $2, $3, $4, $5, $6, NOW())
-      ON CONFLICT (firebase_uid)
-      DO UPDATE SET
-        email = EXCLUDED.email,
-        full_name = COALESCE(NULLIF(EXCLUDED.full_name, ''), users.full_name),
-        avatar_url = COALESCE(EXCLUDED.avatar_url, users.avatar_url),
-        updated_at = NOW()
-      RETURNING id, firebase_uid, email, full_name, role, company_id, avatar_url, is_active, created_at, updated_at;
+    const fullName =
+      (typeof validatedData.fullName === 'string' && validatedData.fullName.length > 0)
+        ? validatedData.fullName
+        : (req.user?.name as string) || email.split('@')[0] || 'ATS User';
+
+    // Handle companyId validation (BUG-09): verify valid UUID or ignore (null)
+    const rawCompanyId = validatedData.companyId;
+    const companyId = isValidUuid(rawCompanyId) ? rawCompanyId.trim() : null;
+
+    const avatarUrl =
+      (typeof validatedData.avatarUrl === 'string' && validatedData.avatarUrl.length > 0)
+        ? validatedData.avatarUrl
+        : (req.user?.picture as string) || null;
+
+    // Check if user already exists in PostgreSQL by firebase_uid OR email (SEC-02 collision handling)
+    const findExistingSql = `
+      SELECT id, firebase_uid, email, full_name, role, company_id, avatar_url, is_active
+      FROM users
+      WHERE firebase_uid = $1 OR LOWER(email) = LOWER($2)
+      LIMIT 1;
     `;
+    const existingResult = await query(findExistingSql, [uid, email]);
+    const existingUser = existingResult.rows[0];
 
-    const result = await query(sql, [uid, email, fullName, role, companyId, avatarUrl]);
-    const dbUser = result.rows[0];
+    let dbUser;
+
+    if (existingUser) {
+      // Active user check (SEC-03): reject deactivated accounts
+      if (existingUser.is_active === false) {
+        res.status(403).json({
+          error: 'Forbidden',
+          message: 'User account is deactivated',
+        });
+        return;
+      }
+
+      // Existing user: preserve assigned role and company_id to prevent client-side privilege escalation (SEC-01)
+      // Update firebase_uid if it changed (linking email collision, SEC-02)
+      const updateSql = `
+        UPDATE users
+        SET
+          firebase_uid = $1,
+          email = $2,
+          full_name = COALESCE(NULLIF($3, ''), users.full_name),
+          avatar_url = COALESCE(NULLIF($4, ''), users.avatar_url),
+          company_id = COALESCE($5, users.company_id),
+          updated_at = NOW()
+        WHERE id = $6
+        RETURNING id, firebase_uid, email, full_name, role, company_id, avatar_url, is_active, created_at, updated_at;
+      `;
+      const updateRes = await query(updateSql, [
+        uid,
+        email,
+        fullName,
+        avatarUrl,
+        companyId,
+        existingUser.id,
+      ]);
+      dbUser = updateRes.rows[0];
+    } else {
+      // New user signup: determine initial role
+      // Privilege escalation protection (SEC-01): NEVER trust raw req.body.role!
+      // Check bootstrap admin emails first
+      const bootstrapAdmins = getBootstrapAdminEmails();
+      let role: DbRole = 'CANDIDATE';
+
+      if (bootstrapAdmins.includes(email.toLowerCase())) {
+        role = 'ADMIN';
+      } else if (req.user?.role && typeof req.user.role === 'string') {
+        // Only trust verified claims from authenticated token
+        role = normalizeDbRole(req.user.role);
+      }
+
+      const insertSql = `
+        INSERT INTO users (firebase_uid, email, full_name, role, company_id, avatar_url, is_active, updated_at)
+        VALUES ($1, $2, $3, $4, $5, $6, true, NOW())
+        RETURNING id, firebase_uid, email, full_name, role, company_id, avatar_url, is_active, created_at, updated_at;
+      `;
+      const insertRes = await query(insertSql, [uid, email, fullName, role, companyId, avatarUrl]);
+      dbUser = insertRes.rows[0];
+    }
 
     // Mirror claims back to Firebase
     try {
@@ -114,9 +204,20 @@ export async function getCurrentUser(req: Request, res: Response): Promise<void>
       return;
     }
 
+    const user = result.rows[0];
+
+    // Active user check (SEC-03)
+    if (user.is_active === false) {
+      res.status(403).json({
+        error: 'Forbidden',
+        message: 'User account is deactivated',
+      });
+      return;
+    }
+
     res.status(200).json({
       success: true,
-      user: result.rows[0],
+      user,
     });
   } catch (error: any) {
     console.error('[GetCurrentUser Error]', error);
@@ -126,3 +227,4 @@ export async function getCurrentUser(req: Request, res: Response): Promise<void>
     });
   }
 }
+
