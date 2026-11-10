@@ -20,6 +20,17 @@ export default {
           900: '#312e81',
           950: '#1e1b4b',
         },
+        surface: '#ffffff',
+        canvas: '#f8fafc',
+        heading: '#0f172a',
+        muted: '#64748b',
+        border: '#e2e8f0',
+      },
+      fontFamily: {
+        sans: ['Inter', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+      },
+      maxWidth: {
+        'container': '1280px',
       },
     },
   },
