@@ -21,4 +21,4 @@ Write-Host "Target: ${User}@${HostName}:${Port}/${Database}" -ForegroundColor Cy
 Write-Host "============================================================" -ForegroundColor Cyan
 
 $scriptPath = Join-Path $PSScriptRoot "migrate.ts"
-node ./backend/node_modules/ts-node-dev/lib/bin.js --transpile-only $scriptPath
+node ./backend/node_modules/ts-node/dist/bin.js --project ./backend/tsconfig.json $scriptPath
