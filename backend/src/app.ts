@@ -8,6 +8,7 @@ import { checkDatabaseConnection } from './config/database';
 dotenv.config();
 
 import authRoutes from './routes/authRoutes';
+import adminRoutes from './routes/adminRoutes';
 
 const app: Application = express();
 
@@ -95,6 +96,7 @@ app.get('/api/health', async (_req: Request, res: Response) => {
 
 // Authentication and RBAC endpoints
 app.use('/api/auth', authRoutes);
+app.use('/api/admin', adminRoutes);
 
 // 404 Not Found Handler
 app.use((req: Request, res: Response) => {
