@@ -59,30 +59,30 @@ Establish Schema / API Contract               Build UI & State using Mock Data (
 **Milestone Release:** `v0.1.0-week1`
 
 #### 🔹 Day 1 (Floor 1): Monorepo Initialization & Base Skeletons
-* [ ] **Cloud:** `feat(cloud): configure firebase project and local auth emulator`
+* [x] **Cloud:** `feat(cloud): configure firebase project and local auth emulator`
   * Enable Email/Password & Google OAuth in Firebase; add `firebase.json` for Auth Emulator on port `9099`.
-* [ ] **Backend:** `feat(backend): scaffold express typescript server and health route`
+* [x] **Backend:** `feat(backend): scaffold express typescript server and health route`
   * Scaffold Express + TypeScript in `backend/src/app.ts` with `/api/health`, CORS, and Helmet.
-* [ ] **Frontend 1:** `feat(frontend): initialize react vite typescript shell and design tokens`
+* [x] **Frontend 1:** `feat(frontend): initialize react vite typescript shell and design tokens`
   * Initialize React + Vite + TS in `frontend/`, configure Tailwind CSS design tokens and base typography.
-* [ ] **Frontend 2:** `feat(frontend): configure client route hierarchy and environment setup`
+* [x] **Frontend 2:** `feat(frontend): configure client route hierarchy and environment setup`
   * Set up React Router DOM, route constants, and client `.env.example`.
-* [ ] **Leader / DevOps:** `chore(repo): initialize monorepo structure and gitignore rules`
+* [x] **Leader / DevOps:** `chore(repo): initialize monorepo structure and gitignore rules`
   * Configure `.gitignore`, folder structure, baseline commit, and seal Floor 1 into `main`.
 * **Daily Done Criteria:** Server runs on port `5000` with `/api/health` returning `200 OK`; frontend renders Vite home page; Auth Emulator runs on `9099`.
 
 ---
 
 #### 🔹 Day 2 (Floor 2): Database Provisioning, Core User/Company Schema & Linting
-* [ ] **Cloud:** `feat(cloud): add postgresql connection config and secret templates`
+* [x] **Cloud:** `feat(cloud): add postgresql connection config and secret templates`
   * Set up PostgreSQL pool parameters and `.env` template for local Docker / cloud DB.
-* [ ] **Backend:** `feat(db): create users and companies schema migration and db pool`
+* [x] **Backend:** `feat(db): create users and companies schema migration and db pool`
   * Create `database/migrations/001_users_companies.sql` (`user_role` ENUM, `users`, `companies`) and `backend/src/config/database.ts`.
-* [ ] **Frontend 1:** `feat(ui): build responsive app layout shell and navigation bar`
+* [x] **Frontend 1:** `feat(ui): build responsive app layout shell and navigation bar`
   * Build responsive App Shell: Navbar, Sidebar drawer, and role-aware navigation wrapper.
-* [ ] **Frontend 2:** `feat(ui): implement navigation state hooks and active route indicators`
+* [x] **Frontend 2:** `feat(ui): implement navigation state hooks and active route indicators`
   * Create navigation active-link state, sidebar toggle hooks, and theme tokens.
-* [ ] **Leader / DevOps:** `ci(devops): add docker-compose postgres setup and eslint workflow`
+* [x] **Leader / DevOps:** `ci(devops): add docker-compose postgres setup and eslint workflow`
   * Create `docker-compose.yml` (Postgres + Firebase Emulator) and `.github/workflows/lint.yml`.
 * **Daily Done Criteria:** `docker-compose up` brings up Postgres and Firebase; migration 001 applies with zero SQL syntax errors.
 
