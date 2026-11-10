@@ -54,11 +54,9 @@ app.get('/', (_req: Request, res: Response) => {
 // Health check endpoint
 app.get('/api/health', (_req: Request, res: Response) => {
   res.status(200).json({
-    status: 'ok',
-    timestamp: new Date().toISOString(),
-    uptime: process.uptime(),
-    environment: process.env.NODE_ENV || 'development',
-    service: 'smart-ats-backend',
+    success: true,
+    message: 'Smart ATS Backend is running',
+    status: 'healthy',
   });
 });
 
