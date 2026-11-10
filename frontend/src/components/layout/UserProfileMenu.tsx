@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { User, LogOut, Settings, ShieldCheck, ChevronDown, CheckCircle2 } from 'lucide-react';
 import { Modal } from '../ui/Modal';
 import { Badge } from '../ui/Badge';
@@ -22,6 +22,7 @@ export const UserProfileMenu: React.FC<UserProfileMenuProps> = ({ user, onLogout
   const [logoutModalOpen, setLogoutModalOpen] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
+  const navigate = useNavigate();
 
   // Close dropdown on outside click
   useEffect(() => {
@@ -40,6 +41,7 @@ export const UserProfileMenu: React.FC<UserProfileMenuProps> = ({ user, onLogout
       if (onLogout) {
         await onLogout();
       }
+      navigate(ROUTES.LOGIN, { replace: true });
     } finally {
       setIsLoggingOut(false);
       setLogoutModalOpen(false);

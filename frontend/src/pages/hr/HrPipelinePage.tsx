@@ -1,8 +1,10 @@
 import React from 'react';
 import { Users, Filter } from 'lucide-react';
 
+type ApplicationStage = 'APPLIED' | 'SCREENING' | 'INTERVIEW' | 'SELECTED' | 'OFFERED' | 'REJECTED';
+
 interface Stage {
-  id: string;
+  id: ApplicationStage;
   name: string;
   count: number;
   candidates: {
@@ -16,7 +18,7 @@ interface Stage {
 
 const INITIAL_STAGES: Stage[] = [
   {
-    id: 'applied',
+    id: 'APPLIED',
     name: 'Applied',
     count: 2,
     candidates: [
@@ -25,7 +27,7 @@ const INITIAL_STAGES: Stage[] = [
     ],
   },
   {
-    id: 'screening',
+    id: 'SCREENING',
     name: 'Screening',
     count: 1,
     candidates: [
@@ -33,7 +35,7 @@ const INITIAL_STAGES: Stage[] = [
     ],
   },
   {
-    id: 'interview',
+    id: 'INTERVIEW',
     name: 'Interview',
     count: 1,
     candidates: [
@@ -41,20 +43,26 @@ const INITIAL_STAGES: Stage[] = [
     ],
   },
   {
-    id: 'offer',
-    name: 'Offer',
+    id: 'SELECTED',
+    name: 'Selected',
     count: 1,
     candidates: [
-      { id: 'c5', name: 'Carlos Mendez', role: 'Cloud Engineer', matchScore: 90, rating: 'Accepted' },
+      { id: 'c5', name: 'Carlos Mendez', role: 'Cloud Engineer', matchScore: 90, rating: 'Selected' },
     ],
   },
   {
-    id: 'hired',
-    name: 'Hired',
+    id: 'OFFERED',
+    name: 'Offered',
     count: 1,
     candidates: [
-      { id: 'c6', name: 'Zack Taylor', role: 'Full Stack Engineer', matchScore: 94, rating: 'Onboarded' },
+      { id: 'c6', name: 'Zack Taylor', role: 'Full Stack Engineer', matchScore: 94, rating: 'Offer Sent' },
     ],
+  },
+  {
+    id: 'REJECTED',
+    name: 'Rejected',
+    count: 0,
+    candidates: [],
   },
 ];
 
@@ -79,7 +87,7 @@ export const HrPipelinePage: React.FC = () => {
       </div>
 
       {/* Kanban Column View */}
-      <div className="grid grid-cols-1 md:grid-cols-5 gap-4 overflow-x-auto pb-4">
+      <div className="grid grid-cols-1 md:grid-cols-3 xl:grid-cols-6 gap-4 overflow-x-auto pb-4">
         {INITIAL_STAGES.map((stage) => (
           <div
             key={stage.id}

@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { ROUTES } from '../constants/routes';
 import { UserPlus, Mail, Lock, User, CheckCircle2, AlertCircle } from 'lucide-react';
 import { Button, Input } from '../components/ui';
+import { useAuth } from '../context/AuthContext';
 
 export const RegisterPage: React.FC = () => {
   const [role, setRole] = useState<'CANDIDATE' | 'HR' | 'ADMIN'>('CANDIDATE');
@@ -16,7 +17,10 @@ export const RegisterPage: React.FC = () => {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const { signUp, signInWithGoogle } = useAuth();
+  const navigate = useNavigate();
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage(null);
 
@@ -31,18 +35,29 @@ export const RegisterPage: React.FC = () => {
     }
 
     setLoading(true);
-    setTimeout(() => {
-      setLoading(false);
+    try {
+      await signUp(formData.email, formData.password, formData.name, role);
       setSuccessMessage(`Account created successfully for ${formData.email} as ${role}!`);
-    }, 1000);
+      navigate(ROUTES.HOME, { replace: true });
+    } catch (err: any) {
+      setErrorMessage(err.message || 'Registration failed. Please try again.');
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleGoogleSignUp = () => {
+  const handleGoogleSignUp = async () => {
+    setErrorMessage(null);
     setLoading(true);
-    setTimeout(() => {
-      setLoading(false);
+    try {
+      await signInWithGoogle(role);
       setSuccessMessage(`Registered via Google OAuth as ${role}`);
-    }, 1000);
+      navigate(ROUTES.HOME, { replace: true });
+    } catch (err: any) {
+      setErrorMessage(err.message || 'Google registration failed');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (

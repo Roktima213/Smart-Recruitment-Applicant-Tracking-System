@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { ROUTES } from '../constants/routes';
 import { LogIn, Mail, Lock, ShieldCheck, AlertCircle, CheckCircle2 } from 'lucide-react';
 import { Button, Input, Modal, Badge } from '../components/ui';
+import { useAuth } from '../context/AuthContext';
+import { resetPassword } from '../services/authService';
 
 export const LoginPage: React.FC = () => {
   const [email, setEmail] = useState('');
@@ -17,33 +19,57 @@ export const LoginPage: React.FC = () => {
   const [resetLoading, setResetLoading] = useState(false);
   const [resetStatus, setResetStatus] = useState<string | null>(null);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const { signIn, signInWithGoogle } = useAuth();
+  const navigate = useNavigate();
+  const location = useLocation();
+  const from = (location.state as any)?.from?.pathname || ROUTES.HOME;
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage(null);
     setLoading(true);
 
-    // Simulated login handler (wired with firebase client in Block C2)
-    setTimeout(() => {
-      setLoading(false);
+    try {
+      await signIn(email, password);
       setSuccessMessage(`Signed in successfully as ${email}`);
-    }, 1000);
-  };
-
-  const handleGoogleSignIn = () => {
-    setLoading(true);
-    setTimeout(() => {
+      navigate(from, { replace: true });
+    } catch (err: any) {
+      setErrorMessage(err.message || 'Failed to sign in. Please verify your credentials.');
+    } finally {
       setLoading(false);
-      setSuccessMessage('Signed in via Google OAuth');
-    }, 1000);
+    }
   };
 
-  const handlePasswordReset = (e: React.FormEvent) => {
+  const handleGoogleSignIn = async () => {
+    setErrorMessage(null);
+    setLoading(true);
+    try {
+      await signInWithGoogle();
+      setSuccessMessage('Signed in via Google OAuth');
+      navigate(from, { replace: true });
+    } catch (err: any) {
+      setErrorMessage(err.message || 'Google sign-in failed');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handlePasswordReset = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!resetEmail) {
+      setResetStatus('Please enter your account email.');
+      return;
+    }
     setResetLoading(true);
-    setTimeout(() => {
-      setResetLoading(false);
+    setResetStatus(null);
+    try {
+      await resetPassword(resetEmail);
       setResetStatus(`Password reset email dispatched to: ${resetEmail}`);
-    }, 1000);
+    } catch (err: any) {
+      setResetStatus(`Reset failed: ${err.message}`);
+    } finally {
+      setResetLoading(false);
+    }
   };
 
   return (
