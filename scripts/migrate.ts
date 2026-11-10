@@ -21,56 +21,66 @@ async function runMigrations() {
   const client = await pool.connect();
 
   try {
-    // 1. Ensure schema_migrations table exists
-    await client.query(`
-      CREATE TABLE IF NOT EXISTS schema_migrations (
-        version VARCHAR(255) PRIMARY KEY,
-        applied_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+    // Acquire session advisory lock to prevent concurrent migration runs
+    const ATS_MIGRATION_LOCK_ID = 849203948;
+    console.log(`Acquiring PostgreSQL advisory lock (${ATS_MIGRATION_LOCK_ID})...`);
+    await client.query('SELECT pg_advisory_lock($1);', [ATS_MIGRATION_LOCK_ID]);
+
+    try {
+      // 1. Ensure schema_migrations table exists
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS schema_migrations (
+          version VARCHAR(255) PRIMARY KEY,
+          applied_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+        );
+      `);
+
+      // 2. Read already applied migrations
+      const { rows: appliedRows } = await client.query<{ version: string }>(
+        'SELECT version FROM schema_migrations ORDER BY version ASC;'
       );
-    `);
+      const appliedSet = new Set(appliedRows.map((r) => r.version));
 
-    // 2. Read already applied migrations
-    const { rows: appliedRows } = await client.query<{ version: string }>(
-      'SELECT version FROM schema_migrations ORDER BY version ASC;'
-    );
-    const appliedSet = new Set(appliedRows.map((r) => r.version));
+      // 3. Scan migration files
+      const allFiles = fs
+        .readdirSync(migrationsDir)
+        .filter((file) => file.endsWith('.sql'))
+        .sort();
 
-    // 3. Scan migration files
-    const allFiles = fs
-      .readdirSync(migrationsDir)
-      .filter((file) => file.endsWith('.sql'))
-      .sort();
+      const pendingFiles = allFiles.filter((file) => !appliedSet.has(file));
 
-    const pendingFiles = allFiles.filter((file) => !appliedSet.has(file));
-
-    if (pendingFiles.length === 0) {
-      console.log('Database is up to date. Zero pending migrations.');
-      return;
-    }
-
-    console.log(`Found ${pendingFiles.length} pending migration(s):`);
-    pendingFiles.forEach((file) => console.log(`  -> ${file}`));
-
-    // 4. Execute pending migrations inside a transaction per file
-    for (const file of pendingFiles) {
-      const filePath = path.join(migrationsDir, file);
-      const sqlContent = fs.readFileSync(filePath, 'utf-8');
-
-      console.log(`\nExecuting migration: ${file}...`);
-      await client.query('BEGIN');
-      try {
-        await client.query(sqlContent);
-        await client.query('INSERT INTO schema_migrations (version) VALUES ($1);', [file]);
-        await client.query('COMMIT');
-        console.log(`  [Success] Migration ${file} applied cleanly.`);
-      } catch (err: any) {
-        await client.query('ROLLBACK');
-        console.error(`  [Failed] Migration ${file} failed: ${err.message}`);
-        throw err;
+      if (pendingFiles.length === 0) {
+        console.log('Database is up to date. Zero pending migrations.');
+        return;
       }
-    }
 
-    console.log('\nAll pending migrations applied successfully!');
+      console.log(`Found ${pendingFiles.length} pending migration(s):`);
+      pendingFiles.forEach((file) => console.log(`  -> ${file}`));
+
+      // 4. Execute pending migrations inside a transaction per file
+      for (const file of pendingFiles) {
+        const filePath = path.join(migrationsDir, file);
+        const sqlContent = fs.readFileSync(filePath, 'utf-8');
+
+        console.log(`\nExecuting migration: ${file}...`);
+        await client.query('BEGIN');
+        try {
+          await client.query(sqlContent);
+          await client.query('INSERT INTO schema_migrations (version) VALUES ($1);', [file]);
+          await client.query('COMMIT');
+          console.log(`  [Success] Migration ${file} applied cleanly.`);
+        } catch (err: any) {
+          await client.query('ROLLBACK');
+          console.error(`  [Failed] Migration ${file} failed: ${err.message}`);
+          throw err;
+        }
+      }
+
+      console.log('\nAll pending migrations applied successfully!');
+    } finally {
+      console.log(`Releasing PostgreSQL advisory lock (${ATS_MIGRATION_LOCK_ID})...`);
+      await client.query('SELECT pg_advisory_unlock($1);', [ATS_MIGRATION_LOCK_ID]);
+    }
   } finally {
     client.release();
     await pool.end();
