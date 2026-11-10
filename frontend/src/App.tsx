@@ -1,6 +1,7 @@
 import React from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { ROUTES } from './constants/routes';
+import { AuthProvider } from './context/AuthContext';
 import { AppLayout } from './components/layout/AppLayout';
 
 // Page Views
@@ -19,31 +20,33 @@ import { NotFoundPage } from './pages/NotFoundPage';
 
 export const App: React.FC = () => {
   return (
-    <BrowserRouter>
-      <Routes>
-        <Route element={<AppLayout />}>
-          {/* Public & Candidate Routes */}
-          <Route path={ROUTES.HOME} element={<HomePage />} />
-          <Route path={ROUTES.LOGIN} element={<LoginPage />} />
-          <Route path={ROUTES.REGISTER} element={<RegisterPage />} />
-          <Route path={ROUTES.JOBS} element={<JobsPage />} />
-          <Route path={ROUTES.CANDIDATE} element={<CandidateDashboardPage />} />
+    <AuthProvider>
+      <BrowserRouter>
+        <Routes>
+          <Route element={<AppLayout />}>
+            {/* Public & Candidate Routes */}
+            <Route path={ROUTES.HOME} element={<HomePage />} />
+            <Route path={ROUTES.LOGIN} element={<LoginPage />} />
+            <Route path={ROUTES.REGISTER} element={<RegisterPage />} />
+            <Route path={ROUTES.JOBS} element={<JobsPage />} />
+            <Route path={ROUTES.CANDIDATE} element={<CandidateDashboardPage />} />
 
-          {/* HR Workspace Routes */}
-          <Route path={ROUTES.HR_JOBS} element={<HrJobsPage />} />
-          <Route path={ROUTES.HR_PIPELINE} element={<HrPipelinePage />} />
-          <Route path={ROUTES.HR_INTERVIEWS} element={<HrInterviewsPage />} />
-          <Route path={ROUTES.HR_OFFERS} element={<HrOffersPage />} />
-          <Route path={ROUTES.HR_ANALYTICS} element={<HrAnalyticsPage />} />
+            {/* HR Workspace Routes */}
+            <Route path={ROUTES.HR_JOBS} element={<HrJobsPage />} />
+            <Route path={ROUTES.HR_PIPELINE} element={<HrPipelinePage />} />
+            <Route path={ROUTES.HR_INTERVIEWS} element={<HrInterviewsPage />} />
+            <Route path={ROUTES.HR_OFFERS} element={<HrOffersPage />} />
+            <Route path={ROUTES.HR_ANALYTICS} element={<HrAnalyticsPage />} />
 
-          {/* Admin & Security Routes */}
-          <Route path={ROUTES.ADMIN} element={<AdminPage />} />
+            {/* Admin & Security Routes */}
+            <Route path={ROUTES.ADMIN} element={<AdminPage />} />
 
-          {/* Fallback 404 Route */}
-          <Route path="*" element={<NotFoundPage />} />
-        </Route>
-      </Routes>
-    </BrowserRouter>
+            {/* Fallback 404 Route */}
+            <Route path="*" element={<NotFoundPage />} />
+          </Route>
+        </Routes>
+      </BrowserRouter>
+    </AuthProvider>
   );
 };
 
