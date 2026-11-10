@@ -1,4 +1,5 @@
-import React from 'react';
+
+import React, { useState } from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
 import { Navbar } from './Navbar';
 import { Sidebar } from './Sidebar';
@@ -7,6 +8,8 @@ import { useAuth } from '../../context/AuthContext';
 
 export const AppLayout: React.FC = () => {
   const location = useLocation();
+  const [sidebarOpen, setSidebarOpen] = useState(true);
+
   const { user, dbUser, signOut } = useAuth();
 
   // Show sidebar on HR and Admin routes
@@ -33,10 +36,16 @@ export const AppLayout: React.FC = () => {
 
   return (
     <div className="min-h-screen flex flex-col bg-slate-50 text-slate-900">
-      <Navbar currentUser={currentUser} onLogout={signOut} />
+      <Navbar
+        currentUser={currentUser}
+        onLogout={signOut}
+        isWorkspaceRoute={isWorkspaceRoute}
+        sidebarOpen={sidebarOpen}
+        onToggleSidebar={() => setSidebarOpen((previous) => !previous)}
+      />
 
       <div className="flex-1 flex w-full">
-        {isWorkspaceRoute && <Sidebar />}
+        {isWorkspaceRoute && sidebarOpen && <Sidebar />}
 
         <main className={`flex-1 ${isWorkspaceRoute ? 'p-6 lg:p-8 max-w-7xl' : ''}`}>
           <Outlet />

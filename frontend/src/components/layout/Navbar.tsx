@@ -11,6 +11,8 @@ import {
   UserPlus,
   Menu,
   X,
+  PanelLeftClose,
+  PanelLeftOpen,
 } from 'lucide-react';
 
 export interface NavbarProps {
@@ -22,9 +24,18 @@ export interface NavbarProps {
     role?: string;
   } | null;
   onLogout?: () => Promise<void> | void;
+  isWorkspaceRoute?: boolean;
+  sidebarOpen?: boolean;
+  onToggleSidebar?: () => void;
 }
 
-export const Navbar: React.FC<NavbarProps> = ({ currentUser, onLogout }) => {
+export const Navbar: React.FC<NavbarProps> = ({
+  currentUser,
+  onLogout,
+  isWorkspaceRoute = false,
+  sidebarOpen = true,
+  onToggleSidebar,
+}) => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const location = useLocation();
 
@@ -52,6 +63,23 @@ export const Navbar: React.FC<NavbarProps> = ({ currentUser, onLogout }) => {
         <div className="flex items-center justify-between h-16">
           {/* Logo & Brand */}
           <div className="flex items-center gap-3">
+            {isWorkspaceRoute && (
+              <button
+                type="button"
+                onClick={onToggleSidebar}
+                className="hidden md:inline-flex p-2 rounded-lg text-slate-600 hover:text-brand-600 hover:bg-slate-100 transition"
+                aria-label={sidebarOpen ? 'Close sidebar' : 'Open sidebar'}
+                aria-expanded={sidebarOpen}
+                aria-controls="workspace-sidebar"
+                title={sidebarOpen ? 'Close sidebar' : 'Open sidebar'}
+              >
+                {sidebarOpen ? (
+                  <PanelLeftClose className="w-5 h-5" />
+                ) : (
+                  <PanelLeftOpen className="w-5 h-5" />
+                )}
+              </button>
+            )}
             <Link to={ROUTES.HOME} className="flex items-center gap-2 font-bold text-xl text-slate-900 group">
               <span className="flex items-center justify-center w-10 h-10 rounded-xl bg-brand-600 text-white shadow-md shadow-brand-500/20 group-hover:bg-brand-700 transition">
                 <Briefcase className="w-5 h-5" />

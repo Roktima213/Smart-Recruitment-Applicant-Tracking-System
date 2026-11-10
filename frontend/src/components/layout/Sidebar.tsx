@@ -24,7 +24,10 @@ export const Sidebar: React.FC = () => {
   ];
 
   return (
-    <aside className="w-64 bg-white border-r border-slate-200 flex flex-col shrink-0 min-h-[calc(100vh-4rem)]">
+    <aside
+      id="workspace-sidebar"
+      className="w-64 ..."
+    >
       {/* Sidebar Header */}
       <div className="p-4 border-b border-slate-100">
         <h2 className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
