@@ -119,15 +119,15 @@ Establish Schema / API Contract               Build UI & State using Mock Data (
 ---
 
 #### 🔹 Day 5 (Floor 5): Server-Side RBAC Middleware & Firebase-to-SQL Account Sync
-* [ ] **Cloud:** `feat(cloud): add firebase custom claims synchronization helper`
+* [x] **Cloud:** `feat(cloud): add firebase custom claims synchronization helper`
   * Build custom claims sync helper (`setCustomUserClaims`) to mirror role changes.
-* [ ] **Backend:** `feat(auth-api): implement firebase jwt middleware and sql user sync route`
+* [x] **Backend:** `feat(auth-api): implement firebase jwt middleware and sql user sync route`
   * Build `authenticateFirebase` & `requireRole` middleware and `POST /api/auth/sync` upsert endpoint.
-* [ ] **Frontend 1:** `feat(ui): build user profile menu avatar and logout confirmation modal`
+* [x] **Frontend 1:** `feat(ui): build user profile menu avatar and logout confirmation modal`
   * Create User Profile dropdown in navbar with user role badge and logout action.
-* [ ] **Frontend 2:** `feat(auth-ui): implement auth context and axios bearer token interceptor`
+* [x] **Frontend 2:** `feat(auth-ui): implement auth context and axios bearer token interceptor`
   * Build `AuthContext.tsx` and Axios interceptor injecting `Authorization: Bearer <idToken>`.
-* [ ] **Leader / DevOps:** `test(auth): add supertest suite for token verification and user sync`
+* [x] **Leader / DevOps:** `test(auth): add supertest suite for token verification and user sync`
   * Add Supertest suite verifying 401 on missing token and 200 on valid sync.
 * **Daily Done Criteria:** Signing in on frontend creates or updates user in PostgreSQL with role; protected route rejects unauthorized requests.
 
