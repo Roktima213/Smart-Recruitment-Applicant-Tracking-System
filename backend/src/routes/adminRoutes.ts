@@ -31,3 +31,4 @@ router.patch('/users/:id/role', updateUserRole);
 router.put('/company', updateCompanyConfig);
 
 export default router;
+

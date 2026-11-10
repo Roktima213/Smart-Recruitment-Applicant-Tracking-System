@@ -375,3 +375,4 @@ export async function updateCompanyConfig(req: Request, res: Response): Promise<
     });
   }
 }
+
