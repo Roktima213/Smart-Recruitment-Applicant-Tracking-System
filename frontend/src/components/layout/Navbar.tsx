@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { ROUTES } from '../../constants/routes';
+import { UserProfileMenu } from './UserProfileMenu';
 import {
   Briefcase,
   UserCheck,
@@ -12,7 +13,18 @@ import {
   X,
 } from 'lucide-react';
 
-export const Navbar: React.FC = () => {
+export interface NavbarProps {
+  currentUser?: {
+    uid?: string;
+    email?: string | null;
+    fullName?: string | null;
+    avatarUrl?: string | null;
+    role?: string;
+  } | null;
+  onLogout?: () => Promise<void> | void;
+}
+
+export const Navbar: React.FC<NavbarProps> = ({ currentUser, onLogout }) => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const location = useLocation();
 
@@ -47,7 +59,7 @@ export const Navbar: React.FC = () => {
               <div className="leading-tight">
                 <span className="text-brand-600">Smart</span>ATS
                 <span className="hidden sm:inline-block ml-2 text-xs font-semibold px-2 py-0.5 rounded-full bg-brand-50 text-brand-700 border border-brand-200">
-                  Floor 2 (Database & App Shell)
+                  Floor 5 (RBAC & Auth Sync)
                 </span>
               </div>
             </Link>
@@ -75,26 +87,26 @@ export const Navbar: React.FC = () => {
 
           {/* Auth Actions & Role Preview Indicator */}
           <div className="hidden md:flex items-center gap-3">
-            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-slate-100 border border-slate-200 text-xs font-medium text-slate-700">
-              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-              <span>Role:</span>
-              <span className="font-semibold text-brand-600">Active</span>
-            </div>
-
-            <Link
-              to={ROUTES.LOGIN}
-              className="inline-flex items-center gap-1.5 px-3.5 py-2 text-sm font-medium text-slate-700 hover:text-brand-600 hover:bg-slate-100 rounded-lg transition"
-            >
-              <LogIn className="w-4 h-4" />
-              Sign In
-            </Link>
-            <Link
-              to={ROUTES.REGISTER}
-              className="inline-flex items-center gap-1.5 px-3.5 py-2 text-sm font-medium text-white bg-brand-600 hover:bg-brand-700 rounded-lg shadow-sm transition"
-            >
-              <UserPlus className="w-4 h-4" />
-              Register
-            </Link>
+            {currentUser ? (
+              <UserProfileMenu user={currentUser} onLogout={onLogout} />
+            ) : (
+              <>
+                <Link
+                  to={ROUTES.LOGIN}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2 text-sm font-medium text-slate-700 hover:text-brand-600 hover:bg-slate-100 rounded-lg transition"
+                >
+                  <LogIn className="w-4 h-4" />
+                  Sign In
+                </Link>
+                <Link
+                  to={ROUTES.REGISTER}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2 text-sm font-medium text-white bg-brand-600 hover:bg-brand-700 rounded-lg shadow-sm transition"
+                >
+                  <UserPlus className="w-4 h-4" />
+                  Register
+                </Link>
+              </>
+            )}
           </div>
 
           {/* Mobile menu button */}
@@ -128,22 +140,48 @@ export const Navbar: React.FC = () => {
             </Link>
           ))}
           <div className="pt-3 border-t border-slate-200 flex flex-col gap-2">
-            <Link
-              to={ROUTES.LOGIN}
-              onClick={() => setMobileMenuOpen(false)}
-              className="flex items-center justify-center gap-2 w-full px-4 py-2 text-sm font-medium text-slate-700 border border-slate-300 rounded-lg hover:bg-slate-50"
-            >
-              <LogIn className="w-4 h-4" />
-              Sign In
-            </Link>
-            <Link
-              to={ROUTES.REGISTER}
-              onClick={() => setMobileMenuOpen(false)}
-              className="flex items-center justify-center gap-2 w-full px-4 py-2 text-sm font-medium text-white bg-brand-600 hover:bg-brand-700 rounded-lg shadow-sm"
-            >
-              <UserPlus className="w-4 h-4" />
-              Register
-            </Link>
+            {currentUser ? (
+              <div className="space-y-2">
+                <div className="px-3 py-2 bg-slate-50 rounded-lg flex items-center justify-between">
+                  <div className="flex flex-col">
+                    <span className="text-xs font-semibold text-slate-800">
+                      {currentUser.fullName || currentUser.email}
+                    </span>
+                    <span className="text-[10px] text-slate-500 uppercase">{currentUser.role || 'CANDIDATE'}</span>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMobileMenuOpen(false);
+                    if (onLogout) onLogout();
+                  }}
+                  className="w-full flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium text-rose-600 bg-rose-50 hover:bg-rose-100 rounded-lg transition"
+                >
+                  <LogIn className="w-4 h-4 rotate-180" />
+                  Sign Out
+                </button>
+              </div>
+            ) : (
+              <>
+                <Link
+                  to={ROUTES.LOGIN}
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="flex items-center justify-center gap-2 w-full px-4 py-2 text-sm font-medium text-slate-700 border border-slate-300 rounded-lg hover:bg-slate-50"
+                >
+                  <LogIn className="w-4 h-4" />
+                  Sign In
+                </Link>
+                <Link
+                  to={ROUTES.REGISTER}
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="flex items-center justify-center gap-2 w-full px-4 py-2 text-sm font-medium text-white bg-brand-600 hover:bg-brand-700 rounded-lg shadow-sm"
+                >
+                  <UserPlus className="w-4 h-4" />
+                  Register
+                </Link>
+              </>
+            )}
           </div>
         </div>
       )}

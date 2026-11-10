@@ -10,6 +10,7 @@ export const ROUTES = {
   HR_OFFERS: '/hr/offers',
   HR_ANALYTICS: '/hr/analytics',
   ADMIN: '/admin',
+  SETTINGS: '/settings',
 } as const;
 
 export type AppRoute = (typeof ROUTES)[keyof typeof ROUTES];
