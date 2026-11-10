@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
+import React, { createContext, useContext, useEffect, useState, useRef, ReactNode } from 'react';
 import { User, onAuthStateChanged } from 'firebase/auth';
 import { auth } from '../config/firebaseClient';
 import {
@@ -42,40 +42,72 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 
-  const syncProfile = async (firebaseUser: User, extraData?: { fullName?: string; role?: string }) => {
-    try {
-      const syncResult = await syncUserWithBackend({
-        fullName: extraData?.fullName || firebaseUser.displayName || undefined,
-        role: extraData?.role || undefined,
-        avatarUrl: firebaseUser.photoURL || undefined,
-      });
+  // FE-05: Deduplication map for in-flight synchronization requests
+  const syncInProgressRef = useRef<Map<string, Promise<DbUserProfile | null>>>(new Map());
 
-      if (syncResult?.user) {
-        setDbUser(syncResult.user);
-      }
-    } catch (syncErr: any) {
-      console.warn('[AuthProvider] Sync warning:', syncErr.message);
-      // Attempt fallback fetch
-      try {
-        const fetched = await fetchCurrentUserProfile();
-        if (fetched?.user) {
-          setDbUser(fetched.user);
-        }
-      } catch {
-        // Fallback simulated local user profile
-        setDbUser({
-          id: firebaseUser.uid,
-          firebase_uid: firebaseUser.uid,
-          email: firebaseUser.email || '',
-          full_name: firebaseUser.displayName || 'ATS User',
-          role: (extraData?.role as any) || 'CANDIDATE',
-          company_id: null,
-          avatar_url: firebaseUser.photoURL || null,
-          is_active: true,
-          created_at: new Date().toISOString(),
-        });
-      }
+  const syncProfile = async (
+    firebaseUser: User,
+    extraData?: { fullName?: string; role?: string }
+  ): Promise<DbUserProfile | null> => {
+    const syncKey = `${firebaseUser.uid}`;
+    const existingSync = syncInProgressRef.current.get(syncKey);
+    if (existingSync) {
+      return existingSync;
     }
+
+    const syncPromise = (async () => {
+      try {
+        const syncResult = await syncUserWithBackend({
+          fullName: extraData?.fullName || firebaseUser.displayName || undefined,
+          role: extraData?.role || undefined,
+          avatarUrl: firebaseUser.photoURL || undefined,
+        });
+
+        // FE-01 (CRITICAL): Force token refresh to capture newly assigned custom claims
+        try {
+          await firebaseUser.getIdToken(true);
+        } catch (tokenErr) {
+          console.warn('[AuthProvider] Forced token refresh warning:', tokenErr);
+        }
+
+        if (syncResult?.user) {
+          setDbUser(syncResult.user);
+          return syncResult.user;
+        }
+        return null;
+      } catch (syncErr: any) {
+        console.warn('[AuthProvider] Sync warning:', syncErr.message);
+        // Attempt fallback fetch
+        try {
+          const fetched = await fetchCurrentUserProfile();
+          if (fetched?.user) {
+            setDbUser(fetched.user);
+            return fetched.user;
+          }
+        } catch {
+          // FE-06: Ensure synthetic fallback profile uses a valid UUID (not Firebase UID)
+          const fallbackProfile: DbUserProfile = {
+            id: '00000000-0000-0000-0000-000000000000',
+            firebase_uid: firebaseUser.uid,
+            email: firebaseUser.email || '',
+            full_name: extraData?.fullName || firebaseUser.displayName || 'ATS User',
+            role: (extraData?.role as any) || 'CANDIDATE',
+            company_id: null,
+            avatar_url: firebaseUser.photoURL || null,
+            is_active: true,
+            created_at: new Date().toISOString(),
+          };
+          setDbUser(fallbackProfile);
+          return fallbackProfile;
+        }
+        return null;
+      } finally {
+        syncInProgressRef.current.delete(syncKey);
+      }
+    })();
+
+    syncInProgressRef.current.set(syncKey, syncPromise);
+    return syncPromise;
   };
 
   useEffect(() => {
