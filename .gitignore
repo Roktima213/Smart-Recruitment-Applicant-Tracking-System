@@ -41,6 +41,7 @@ npm-debug.log*
 yarn-debug.log*
 pnpm-debug.log*
 
-# Preserved project reference documents
-!DOC-20261107-WA0003.pdf
-!Web Dev.pdf
+# Private project architecture & reference documents
+*.pdf
+DOC-20261107-WA0003.pdf
+Web Dev.pdf
