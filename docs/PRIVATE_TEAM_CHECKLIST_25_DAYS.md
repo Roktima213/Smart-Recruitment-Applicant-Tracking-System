@@ -104,15 +104,15 @@ Establish Schema / API Contract               Build UI & State using Mock Data (
 ---
 
 #### 🔹 Day 4 (Floor 4): Interviews, Offers, Notifications Schema & Firebase Admin SDK
-* [ ] **Cloud:** `feat(cloud): initialize firebase-admin sdk with emulator and cert support`
+* [x] **Cloud:** `feat(cloud): initialize firebase-admin sdk with emulator and cert support`
   * Implement `backend/src/config/firebaseAdmin.ts` supporting emulator and service-account certs.
-* [ ] **Backend:** `feat(db): add interviews feedback offers onboarding and notification tables`
+* [x] **Backend:** `feat(db): add interviews feedback offers onboarding and notification tables`
   * Create `database/migrations/003_interviews_offers_notifications.sql` completing the 12 core tables.
-* [ ] **Frontend 1:** `feat(auth-ui): create login registration and password reset screens`
+* [x] **Frontend 1:** `feat(auth-ui): create login registration and password reset screens`
   * Build Login (`/login`) and Register (`/register`) screens with error banners and form inputs.
-* [ ] **Frontend 2:** `feat(auth-ui): wire firebase auth sign-in registration and google oauth methods`
+* [x] **Frontend 2:** `feat(auth-ui): wire firebase auth sign-in registration and google oauth methods`
   * Implement sign-in with email/password and Google OAuth popup handler.
-* [ ] **Leader / DevOps:** `test(devops): configure jest and supertest harness for backend api`
+* [x] **Leader / DevOps:** `test(devops): configure jest and supertest harness for backend api`
   * Set up `backend/jest.config.ts` with isolated test database setup and teardown hooks.
 * **Daily Done Criteria:** All 12 tables created in PostgreSQL; Firebase Admin SDK initializes successfully.
 
