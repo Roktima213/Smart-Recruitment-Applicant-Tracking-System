@@ -1,3 +1,14 @@
+jest.mock('./config/firebaseAdmin', () => ({
+  verifyFirebaseIdToken: jest.fn().mockResolvedValue({ uid: 'test-user', email: 'test@example.com' }),
+  setCustomClaims: jest.fn().mockResolvedValue(undefined),
+  isAuthEmulatorEnabled: jest.fn().mockReturnValue(true),
+  firebaseAdminApp: { name: '[DEFAULT]' },
+  adminAuth: {
+    getUser: jest.fn(),
+    revokeRefreshTokens: jest.fn(),
+  },
+}));
+
 import request from 'supertest';
 import app from './app';
 

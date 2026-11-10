@@ -6,6 +6,8 @@ import dotenv from 'dotenv';
 // Load environment variables
 dotenv.config();
 
+import authRoutes from './routes/authRoutes';
+
 const app: Application = express();
 
 // Security Middleware
@@ -59,6 +61,9 @@ app.get('/api/health', (_req: Request, res: Response) => {
     status: 'healthy',
   });
 });
+
+// Authentication and RBAC endpoints
+app.use('/api/auth', authRoutes);
 
 // 404 Not Found Handler
 app.use((req: Request, res: Response) => {

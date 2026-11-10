@@ -3,6 +3,7 @@ import { adminAuth, setCustomClaims } from '../config/firebaseAdmin';
 export const VALID_ROLES = [
   'SUPER_ADMIN',
   'ADMIN',
+  'HR',
   'HR_MANAGER',
   'RECRUITER',
   'INTERVIEWER',
