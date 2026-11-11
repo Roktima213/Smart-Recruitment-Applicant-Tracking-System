@@ -1,3 +1,4 @@
+/// <reference types="multer" />
 import { Request, Response } from 'express';
 import { z } from 'zod';
 import fs from 'fs';
@@ -117,10 +118,51 @@ async function getOrCreateCandidateProfile(firebaseUid: string) {
   };
 }
 
+export interface CandidateUserRecord {
+  id: string;
+  firebase_uid?: string;
+  email: string;
+  full_name: string;
+  role?: string;
+  phone?: string | null;
+  avatar_url?: string | null;
+  is_active?: boolean;
+}
+
+export interface CandidateProfileRecord {
+  id: string;
+  user_id: string;
+  headline?: string | null;
+  summary?: string | null;
+  skills?: string[] | null;
+  experience_years?: number | string | null;
+  current_company?: string | null;
+  linkedin_url?: string | null;
+  github_url?: string | null;
+  portfolio_url?: string | null;
+  created_at: Date | string;
+  updated_at: Date | string;
+}
+
+export interface ResumeMetadataRecord {
+  id: string;
+  candidate_id?: string;
+  file_name: string;
+  stored_file_name: string;
+  file_size: number | string;
+  mime_type: string;
+  sha256_hash: string;
+  created_at: Date | string;
+}
+
 /**
  * Format candidate profile for API response
  */
-function formatProfileResponse(user: any, profile: any, latestResume?: any) {
+function formatProfileResponse(
+  user: CandidateUserRecord,
+  profile: CandidateProfileRecord,
+  latestResume?: ResumeMetadataRecord | null
+) {
   return {
     candidateId: profile.id,
     userId: user.id,
@@ -194,7 +236,7 @@ export async function getMyProfile(req: Request, res: Response): Promise<void> {
       success: true,
       profile: formatProfileResponse(user, profile, latestResume),
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('[Get Candidate Profile Error]', error);
     res.status(500).json({
       success: false,
@@ -330,7 +372,7 @@ export async function updateMyProfile(req: Request, res: Response): Promise<void
       message: 'Candidate profile updated successfully',
       profile: formatProfileResponse(updatedUser, updatedProfile),
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('[Update Candidate Profile Error]', error);
     res.status(500).json({
       success: false,
@@ -479,7 +521,7 @@ export async function uploadResume(req: Request, res: Response): Promise<void> {
           createdAt: savedResume.created_at,
         },
       });
-    } catch (dbError: any) {
+    } catch (dbError: unknown) {
       console.error('[Resume Metadata DB Error]', dbError);
       // Clean up uploaded file if database insert fails
       if (fs.existsSync(finalPath)) {
@@ -490,7 +532,7 @@ export async function uploadResume(req: Request, res: Response): Promise<void> {
         error: { message: 'Failed to record resume metadata in database', statusCode: 500 },
       });
     }
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('[Resume Upload Error]', error);
     if (fs.existsSync(uploadedPath)) {
       try {

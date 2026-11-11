@@ -17,11 +17,19 @@ ensureStorageDirectory();
 
 // Configure Multer Disk Storage with safe UUID filenames
 const storage = multer.diskStorage({
-  destination: (_req, _file, cb) => {
+  destination: (
+    _req: Request,
+    _file: Express.Multer.File,
+    cb: (error: Error | null, destination: string) => void
+  ) => {
     ensureStorageDirectory();
     cb(null, storageConfig.uploadDir);
   },
-  filename: (_req, file, cb) => {
+  filename: (
+    _req: Request,
+    file: Express.Multer.File,
+    cb: (error: Error | null, filename: string) => void
+  ) => {
     const uniqueId = crypto.randomUUID();
     const ext = path.extname(file.originalname).toLowerCase();
     // Default safe temporary extension before magic-byte verification
@@ -79,7 +87,7 @@ function requireCandidateRole(req: Request, res: Response, next: NextFunction): 
 function handleResumeUpload(req: Request, res: Response, next: NextFunction): void {
   const singleUpload = upload.single('resume');
 
-  singleUpload(req, res, (err: any) => {
+  singleUpload(req, res, (err: unknown) => {
     if (err instanceof multer.MulterError) {
       if (err.code === 'LIMIT_FILE_SIZE') {
         res.status(400).json({
@@ -99,11 +107,20 @@ function handleResumeUpload(req: Request, res: Response, next: NextFunction): vo
         },
       });
       return;
-    } else if (err) {
+    } else if (err instanceof Error) {
       res.status(400).json({
         success: false,
         error: {
           message: err.message || 'File upload failed',
+          statusCode: 400,
+        },
+      });
+      return;
+    } else if (err) {
+      res.status(400).json({
+        success: false,
+        error: {
+          message: 'File upload failed',
           statusCode: 400,
         },
       });
