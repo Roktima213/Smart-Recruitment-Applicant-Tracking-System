@@ -1,13 +1,46 @@
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 @layer base {
+  :root {
+    /* Brand colors */
+    --color-primary: #4f46e5;
+    --color-primary-hover: #4338ca;
+    --color-primary-light: #eef2ff;
+
+    /* Background colors */
+    --background: #f8fafc;
+    --surface: #ffffff;
+
+    /* Text colors */
+    --foreground: #0f172a;
+    --muted-foreground: #64748b;
+
+    /* Border and status colors */
+    --border: #e2e8f0;
+    --success: #10b981;
+    --danger: #e11d48;
+
+    /* Layout */
+    --sidebar-width: 16rem;
+    --navbar-height: 4rem;
+  }
+
   html {
     scroll-behavior: smooth;
   }
 
   body {
     @apply bg-slate-50 text-slate-900 antialiased min-h-screen font-sans;
+    background-color: var(--background);
+    color: var(--foreground);
+  }
+}
+
+@layer components {
+  .app-container {
+    @apply w-full max-w-container mx-auto px-4 sm:px-6 lg:px-8;
   }
 }
