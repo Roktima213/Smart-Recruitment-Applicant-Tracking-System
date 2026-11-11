@@ -108,34 +108,37 @@ export async function runSeed(options: { closePool?: boolean } = { closePool: tr
         [demoUser.firebaseUid, demoUser.email, demoUser.fullName, demoUser.role, demoUser.companyId]
       );
 
-      // 2b. Sync into Firebase Auth (if reachable)
-      try {
-        let firebaseUser;
+      // 2b. Sync into Firebase Auth (if reachable and emulator active)
+      if (process.env.FIREBASE_AUTH_EMULATOR_HOST) {
         try {
-          firebaseUser = await adminAuth.getUser(demoUser.firebaseUid);
-          await adminAuth.updateUser(demoUser.firebaseUid, {
-            email: demoUser.email,
-            password: demoUser.password,
-            displayName: demoUser.fullName,
-          });
-        } catch (notFound) {
-          firebaseUser = await adminAuth.createUser({
-            uid: demoUser.firebaseUid,
-            email: demoUser.email,
-            password: demoUser.password,
-            displayName: demoUser.fullName,
-          });
-        }
+          try {
+            await adminAuth.getUser(demoUser.firebaseUid);
+            await adminAuth.updateUser(demoUser.firebaseUid, {
+              email: demoUser.email,
+              password: demoUser.password,
+              displayName: demoUser.fullName,
+            });
+          } catch {
+            await adminAuth.createUser({
+              uid: demoUser.firebaseUid,
+              email: demoUser.email,
+              password: demoUser.password,
+              displayName: demoUser.fullName,
+            });
+          }
 
-        // Set custom claims
-        await adminAuth.setCustomUserClaims(demoUser.firebaseUid, {
-          role: demoUser.role,
-          companyId: demoUser.companyId,
-          syncedAt: Date.now(),
-        });
-        console.log(`  ✓ Firebase Auth account & claims synchronized for ${demoUser.email}`);
-      } catch (fbError: any) {
-        console.warn(`  ⚠️ Firebase sync skipped for ${demoUser.email} (Auth emulator inactive: ${fbError.message})`);
+          // Set custom claims
+          await adminAuth.setCustomUserClaims(demoUser.firebaseUid, {
+            role: demoUser.role,
+            companyId: demoUser.companyId,
+            syncedAt: Date.now(),
+          });
+          console.log(`  ✓ Firebase Auth account & claims synchronized for ${demoUser.email}`);
+        } catch (fbError: any) {
+          console.warn(`  ⚠️ Firebase sync skipped for ${demoUser.email} (${fbError.message})`);
+        }
+      } else {
+        console.log(`  ℹ️ Skipping Firebase Auth sync for ${demoUser.email} (FIREBASE_AUTH_EMULATOR_HOST not set)`);
       }
     }
 
@@ -149,14 +152,19 @@ export async function runSeed(options: { closePool?: boolean } = { closePool: tr
       await client.query(
         `
         INSERT INTO jobs (
-          id, company_id, creator_id, title, department, location,
-          employment_type, experience_level, salary_min, salary_max,
-          salary_currency, status, description, requirements, created_at, updated_at
+          id, company_id, created_by, title, department, location,
+          employment_type, salary_min, salary_max, status, description, created_at, updated_at
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, NOW(), NOW())
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, NOW(), NOW())
         ON CONFLICT (id) DO UPDATE SET
           title = EXCLUDED.title,
+          department = EXCLUDED.department,
+          location = EXCLUDED.location,
+          employment_type = EXCLUDED.employment_type,
+          salary_min = EXCLUDED.salary_min,
+          salary_max = EXCLUDED.salary_max,
           status = EXCLUDED.status,
+          description = EXCLUDED.description,
           updated_at = NOW();
         `,
         [
@@ -167,13 +175,10 @@ export async function runSeed(options: { closePool?: boolean } = { closePool: tr
           DEMO_JOB.department,
           DEMO_JOB.location,
           DEMO_JOB.employmentType,
-          DEMO_JOB.experienceLevel,
           DEMO_JOB.salaryMin,
           DEMO_JOB.salaryMax,
-          DEMO_JOB.salaryCurrency,
           DEMO_JOB.status,
           DEMO_JOB.description,
-          JSON.stringify(DEMO_JOB.requirements),
         ]
       );
     }
@@ -187,12 +192,15 @@ export async function runSeed(options: { closePool?: boolean } = { closePool: tr
       await client.query(
         `
         INSERT INTO candidate_profiles (
-          user_id, headline, bio, experience_years, skills, location, linkedin_url, created_at, updated_at
+          user_id, headline, summary, experience_years, skills, linkedin_url, created_at, updated_at
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, NOW(), NOW())
+        VALUES ($1, $2, $3, $4, $5, $6, NOW(), NOW())
         ON CONFLICT (user_id) DO UPDATE SET
           headline = EXCLUDED.headline,
+          summary = EXCLUDED.summary,
           experience_years = EXCLUDED.experience_years,
+          skills = EXCLUDED.skills,
+          linkedin_url = EXCLUDED.linkedin_url,
           updated_at = NOW();
         `,
         [
@@ -200,8 +208,7 @@ export async function runSeed(options: { closePool?: boolean } = { closePool: tr
           'Full-Stack TypeScript & React Developer',
           'Passionate about building robust web apps, microservices, and reactive UIs.',
           6,
-          JSON.stringify(['TypeScript', 'React', 'Node.js', 'PostgreSQL', 'Docker']),
-          'San Francisco, CA',
+          ['TypeScript', 'React', 'Node.js', 'PostgreSQL', 'Docker'],
           'https://linkedin.com/in/charlie-candidate-demo',
         ]
       );
@@ -215,7 +222,7 @@ export async function runSeed(options: { closePool?: boolean } = { closePool: tr
     console.log('  - Candidate: candidate@ats.local / CandidatePassword123!');
     console.log('============================================================');
   } catch (error: any) {
-    console.error('[Seed Error] Failed to seed database:', error.message);
+    console.error('[Seed Error] Failed to seed database:', error?.stack || error?.message || error);
     throw error;
   } finally {
     if (client && lockAcquired) {

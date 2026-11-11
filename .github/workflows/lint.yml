@@ -118,4 +118,4 @@ jobs:
           DB_USER: postgres
           DB_PASSWORD: postgres
         run: |
-          node ./backend/node_modules/ts-node/dist/bin.js --project ./backend/tsconfig.json database/seed/seed.ts
+          node ./backend/node_modules/ts-node/dist/bin.js --project ./backend/tsconfig.json --transpile-only database/seed/seed.ts
