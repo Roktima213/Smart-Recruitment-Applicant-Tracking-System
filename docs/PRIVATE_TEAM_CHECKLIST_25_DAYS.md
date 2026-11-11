@@ -182,15 +182,15 @@ Establish Schema / API Contract               Build UI & State using Mock Data (
 ---
 
 #### 🔹 Day 9 (Floor 9): Public Job Board, Search, Filtering & Pagination
-* [ ] **Cloud:** `feat(cloud): configure caching headers and cors rules for job listings`
+* [x] **Cloud:** `feat(cloud): configure caching headers and cors rules for job listings`
   * Configure caching headers (`Cache-Control: public, max-age=60`) on published job list endpoint.
-* [ ] **Backend:** `feat(jobs-api): add paginated job listing search and detail endpoints`
+* [x] **Backend:** `feat(jobs-api): add paginated job listing search and detail endpoints`
   * Build `GET /api/jobs` (paginated, keyword search, filters) and `GET /api/jobs/:id`.
-* [ ] **Frontend 1:** `feat(jobs-ui): create candidate job board search filters and detail view`
+* [x] **Frontend 1:** `feat(jobs-ui): create candidate job board search filters and detail view`
   * Build Candidate Job Board (`/jobs`) and Job Detail (`/jobs/:id`) view cards.
-* [ ] **Frontend 2:** `feat(jobs-ui): implement debounced search pagination and job detail hooks`
+* [x] **Frontend 2:** `feat(jobs-ui): implement debounced search pagination and job detail hooks`
   * Wire debounced search query params, filter dropdowns, and pagination controls.
-* [ ] **Leader / DevOps:** `test(jobs): add pagination boundary and query sanitization tests`
+* [x] **Leader / DevOps:** `test(jobs): add pagination boundary and query sanitization tests`
   * Add fuzz tests checking pagination edge cases (`page=0`, `limit=1000`) and SQL injection safety.
 * **Daily Done Criteria:** Unauthenticated candidates can search and filter published jobs with fast pagination.
 
