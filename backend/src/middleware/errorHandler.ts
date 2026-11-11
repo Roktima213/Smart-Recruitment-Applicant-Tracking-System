@@ -96,7 +96,7 @@ export const errorHandler = (
     statusCode,
   };
 
-  if (err.details !== undefined) {
+  if (err.details !== undefined && (isDevelopment || statusCode < 500)) {
     errorBody.details = err.details;
   }
 

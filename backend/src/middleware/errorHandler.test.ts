@@ -82,6 +82,7 @@ describe('Global Error Handler & Zod Validation Middleware', () => {
     expect(res.body.success).toBe(false);
     expect(res.body.error.message).toBe('An unexpected internal server error occurred');
     expect(res.body.error.stack).toBeUndefined();
+    expect(res.body.error.details).toBeUndefined();
 
     process.env.NODE_ENV = origEnv;
   });

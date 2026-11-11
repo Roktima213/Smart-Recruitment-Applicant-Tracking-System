@@ -4,6 +4,15 @@ import { pool } from '../config/database';
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
+/**
+ * Normalizes query string parameter preventing HTTP Parameter Pollution (HPP)
+ */
+function getSingleParam(val: unknown): string | undefined {
+  if (typeof val === 'string') return val.trim();
+  if (Array.isArray(val) && typeof val[0] === 'string') return val[0].trim();
+  return undefined;
+}
+
 export const createJobSchema = z
   .object({
     title: z.string().trim().min(3, 'Job title must be at least 3 characters').max(255),
@@ -11,8 +20,8 @@ export const createJobSchema = z
     department: z.string().trim().max(100).optional().default('General'),
     location: z.string().trim().max(100).optional().default('Remote'),
     employment_type: z.string().trim().max(50).optional().default('Full-time'),
-    salary_min: z.number().int().nonnegative().optional().nullable(),
-    salary_max: z.number().int().nonnegative().optional().nullable(),
+    salary_min: z.number().int().nonnegative().max(2147483647, 'Salary cannot exceed 2,147,483,647').optional().nullable(),
+    salary_max: z.number().int().nonnegative().max(2147483647, 'Salary cannot exceed 2,147,483,647').optional().nullable(),
     status: z.enum(['DRAFT', 'PUBLISHED', 'CLOSED', 'ARCHIVED']).optional().default('DRAFT'),
     company_id: z.string().regex(UUID_REGEX, 'Invalid company UUID').optional().nullable(),
   })
@@ -36,8 +45,8 @@ export const updateJobSchema = z
     department: z.string().trim().max(100).optional(),
     location: z.string().trim().max(100).optional(),
     employment_type: z.string().trim().max(50).optional(),
-    salary_min: z.number().int().nonnegative().optional().nullable(),
-    salary_max: z.number().int().nonnegative().optional().nullable(),
+    salary_min: z.number().int().nonnegative().max(2147483647, 'Salary cannot exceed 2,147,483,647').optional().nullable(),
+    salary_max: z.number().int().nonnegative().max(2147483647, 'Salary cannot exceed 2,147,483,647').optional().nullable(),
     status: z.enum(['DRAFT', 'PUBLISHED', 'CLOSED', 'ARCHIVED']).optional(),
   })
   .refine(
@@ -67,10 +76,13 @@ export const updateJobStatusSchema = z.object({
 export const listJobs = async (req: Request, res: Response): Promise<void> => {
   try {
     // Defensive pagination bounds checking (Fuzz & boundary hardening)
-    let rawPage = parseInt(req.query.page as string, 10);
+    const rawPageParam = getSingleParam(req.query.page);
+    let rawPage = parseInt(rawPageParam as string, 10);
     if (isNaN(rawPage) || rawPage < 1) rawPage = 1;
+    if (rawPage > 100000) rawPage = 100000;
 
-    let rawLimit = parseInt(req.query.limit as string, 10);
+    const rawLimitParam = getSingleParam(req.query.limit);
+    let rawLimit = parseInt(rawLimitParam as string, 10);
     if (isNaN(rawLimit) || rawLimit < 1) rawLimit = 20;
     if (rawLimit > 100) rawLimit = 100;
 
@@ -78,7 +90,14 @@ export const listJobs = async (req: Request, res: Response): Promise<void> => {
     const limit = rawLimit;
     const offset = (page - 1) * limit;
 
-    const { status, department, location, employment_type, type, q, company_id, min_salary, max_salary } = req.query;
+    const statusParam = getSingleParam(req.query.status);
+    const departmentParam = getSingleParam(req.query.department);
+    const locationParam = getSingleParam(req.query.location);
+    const empTypeParam = getSingleParam(req.query.employment_type || req.query.type);
+    const qParam = getSingleParam(req.query.q);
+    const companyIdParam = getSingleParam(req.query.company_id);
+    const minSalaryParam = getSingleParam(req.query.min_salary || req.query.salary_min);
+    const maxSalaryParam = getSingleParam(req.query.max_salary || req.query.salary_max);
 
     const conditions: string[] = [];
     const values: unknown[] = [];
@@ -88,57 +107,68 @@ export const listJobs = async (req: Request, res: Response): Promise<void> => {
     const userRole = (req.user?.role || '').toUpperCase();
     const isStaff = userRole === 'ADMIN' || userRole === 'HR' || userRole === 'SUPER_ADMIN';
 
-    if (status && typeof status === 'string' && status.trim()) {
-      const normalizedStatus = status.trim().toUpperCase();
-      if (isStaff || normalizedStatus === 'PUBLISHED') {
-        conditions.push(`j.status = $${paramIndex++}`);
-        values.push(normalizedStatus);
+    if (statusParam) {
+      const normalizedStatus = statusParam.toUpperCase();
+      const validStatuses = ['DRAFT', 'PUBLISHED', 'CLOSED', 'ARCHIVED'];
+      if (validStatuses.includes(normalizedStatus)) {
+        if (isStaff || normalizedStatus === 'PUBLISHED') {
+          conditions.push(`j.status = $${paramIndex++}`);
+          values.push(normalizedStatus);
+        } else {
+          conditions.push(`j.status = 'PUBLISHED'`);
+        }
       } else {
-        conditions.push(`j.status = 'PUBLISHED'`);
+        // Defensive check: filter for non-existent status yields 0 rows or fallback safely without SQL syntax error
+        if (isStaff) {
+          conditions.push(`1 = 0`);
+        } else {
+          conditions.push(`j.status = 'PUBLISHED'`);
+        }
       }
     } else if (!isStaff) {
       conditions.push(`j.status = 'PUBLISHED'`);
     }
 
-    if (department && typeof department === 'string' && department.trim()) {
+    if (departmentParam) {
       conditions.push(`j.department ILIKE $${paramIndex++}`);
-      values.push(`%${department.trim()}%`);
+      values.push(`%${departmentParam}%`);
     }
 
-    if (location && typeof location === 'string' && location.trim()) {
+    if (locationParam) {
       conditions.push(`j.location ILIKE $${paramIndex++}`);
-      values.push(`%${location.trim()}%`);
+      values.push(`%${locationParam}%`);
     }
 
-    const empType = (employment_type || type) as string | undefined;
-    if (empType && typeof empType === 'string' && empType.trim()) {
+    if (empTypeParam) {
       conditions.push(`j.employment_type ILIKE $${paramIndex++}`);
-      values.push(`%${empType.trim()}%`);
+      values.push(`%${empTypeParam}%`);
     }
 
-    if (company_id && typeof company_id === 'string' && UUID_REGEX.test(company_id.trim())) {
+    if (companyIdParam && UUID_REGEX.test(companyIdParam)) {
       conditions.push(`j.company_id = $${paramIndex++}`);
-      values.push(company_id.trim());
+      values.push(companyIdParam);
     }
 
-    if (min_salary) {
-      const parsedMin = parseInt(min_salary as string, 10);
+    if (minSalaryParam) {
+      const parsedMin = parseInt(minSalaryParam, 10);
       if (!isNaN(parsedMin) && parsedMin >= 0) {
+        const clampedMin = Math.min(parsedMin, 2147483647);
         conditions.push(`(j.salary_max IS NULL OR j.salary_max >= $${paramIndex++})`);
-        values.push(parsedMin);
+        values.push(clampedMin);
       }
     }
 
-    if (max_salary) {
-      const parsedMax = parseInt(max_salary as string, 10);
+    if (maxSalaryParam) {
+      const parsedMax = parseInt(maxSalaryParam, 10);
       if (!isNaN(parsedMax) && parsedMax >= 0) {
+        const clampedMax = Math.min(parsedMax, 2147483647);
         conditions.push(`(j.salary_min IS NULL OR j.salary_min <= $${paramIndex++})`);
-        values.push(parsedMax);
+        values.push(clampedMax);
       }
     }
 
-    if (q && typeof q === 'string' && q.trim()) {
-      const sanitizedQ = `%${q.trim()}%`;
+    if (qParam) {
+      const sanitizedQ = `%${qParam}%`;
       conditions.push(`(j.title ILIKE $${paramIndex} OR j.description ILIKE $${paramIndex} OR j.department ILIKE $${paramIndex} OR j.location ILIKE $${paramIndex})`);
       values.push(sanitizedQ);
       paramIndex++;
@@ -310,7 +340,10 @@ export const createJob = async (req: Request, res: Response): Promise<void> => {
       const userRes = await pool.query('SELECT id, company_id FROM users WHERE firebase_uid = $1;', [firebaseUid]);
       if (userRes.rows.length > 0) {
         creatorId = userRes.rows[0].id;
-        if (!targetCompanyId) {
+        // Tenant isolation: HR users must always create jobs under their own assigned company
+        if (req.user?.role === 'HR' && userRes.rows[0].company_id) {
+          targetCompanyId = userRes.rows[0].company_id;
+        } else if (!targetCompanyId) {
           targetCompanyId = userRes.rows[0].company_id;
         }
       }
@@ -361,8 +394,8 @@ export const createJob = async (req: Request, res: Response): Promise<void> => {
       department,
       location,
       employment_type,
-      salary_min || null,
-      salary_max || null,
+      salary_min != null ? salary_min : null,
+      salary_max != null ? salary_max : null,
       status,
       publishedAt,
     ];
@@ -409,6 +442,23 @@ export const updateJob = async (req: Request, res: Response): Promise<void> => {
     }
 
     const currentJob = existingRes.rows[0];
+
+    // Tenant isolation: HR users can only modify jobs in their own company
+    if (req.user?.role === 'HR' && currentJob.company_id) {
+      let userCompanyId = req.user.companyId;
+      if (!userCompanyId && req.user.uid) {
+        const userRes = await pool.query('SELECT company_id FROM users WHERE firebase_uid = $1;', [req.user.uid]);
+        userCompanyId = userRes.rows[0]?.company_id;
+      }
+      if (userCompanyId && currentJob.company_id !== userCompanyId) {
+        res.status(403).json({
+          success: false,
+          error: { message: 'Forbidden: You are not authorized to modify job requisitions belonging to another organization', statusCode: 403 },
+        });
+        return;
+      }
+    }
+
     const {
       title = currentJob.title,
       description = currentJob.description,
@@ -423,10 +473,18 @@ export const updateJob = async (req: Request, res: Response): Promise<void> => {
     let publishedAt = currentJob.published_at;
     let closedAt = currentJob.closed_at;
 
-    if (status === 'PUBLISHED' && currentJob.status !== 'PUBLISHED') {
-      publishedAt = new Date();
-    } else if (status === 'CLOSED' && currentJob.status !== 'CLOSED') {
-      closedAt = new Date();
+    if (status === 'PUBLISHED') {
+      if (currentJob.status !== 'PUBLISHED' || !publishedAt) {
+        publishedAt = new Date();
+      }
+      closedAt = null; // Reopening clears closed_at
+    } else if (status === 'CLOSED') {
+      if (currentJob.status !== 'CLOSED' || !closedAt) {
+        closedAt = new Date();
+      }
+    } else if (status === 'DRAFT') {
+      publishedAt = null;
+      closedAt = null;
     }
 
     const updateSql = `
@@ -492,7 +550,7 @@ export const updateJobStatus = async (req: Request, res: Response): Promise<void
       return;
     }
 
-    const existingRes = await pool.query('SELECT status, published_at FROM jobs WHERE id = $1;', [id]);
+    const existingRes = await pool.query('SELECT status, published_at, closed_at, company_id FROM jobs WHERE id = $1;', [id]);
     if (existingRes.rows.length === 0) {
       res.status(404).json({
         success: false,
@@ -502,21 +560,46 @@ export const updateJobStatus = async (req: Request, res: Response): Promise<void
     }
 
     const current = existingRes.rows[0];
-    let publishedAt = current.published_at;
-    let closedAt: Date | null = null;
 
-    if (status === 'PUBLISHED' && !publishedAt) {
-      publishedAt = new Date();
+    // Tenant isolation: HR users can only modify jobs in their own company
+    if (req.user?.role === 'HR' && current.company_id) {
+      let userCompanyId = req.user.companyId;
+      if (!userCompanyId && req.user.uid) {
+        const userRes = await pool.query('SELECT company_id FROM users WHERE firebase_uid = $1;', [req.user.uid]);
+        userCompanyId = userRes.rows[0]?.company_id;
+      }
+      if (userCompanyId && current.company_id !== userCompanyId) {
+        res.status(403).json({
+          success: false,
+          error: { message: 'Forbidden: You are not authorized to modify job requisitions belonging to another organization', statusCode: 403 },
+        });
+        return;
+      }
+    }
+
+    let publishedAt = current.published_at;
+    let closedAt = current.closed_at;
+
+    if (status === 'PUBLISHED') {
+      if (!publishedAt) {
+        publishedAt = new Date();
+      }
+      closedAt = null; // Reopening clears closed_at
     } else if (status === 'CLOSED') {
-      closedAt = new Date();
+      if (!closedAt) {
+        closedAt = new Date();
+      }
+    } else if (status === 'DRAFT') {
+      publishedAt = null;
+      closedAt = null;
     }
 
     const updateSql = `
       UPDATE jobs
       SET 
         status = $1,
-        published_at = COALESCE($2, published_at),
-        closed_at = COALESCE($3, closed_at),
+        published_at = $2,
+        closed_at = $3,
         updated_at = NOW()
       WHERE id = $4
       RETURNING *;

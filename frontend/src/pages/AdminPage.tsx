@@ -248,16 +248,19 @@ export const AdminPage: React.FC = () => {
       prev.map((u) => (u.id === user.id ? { ...u, is_active: newStatus } : u))
     );
 
-    addToast(
-      `User account "${user.full_name}" is now ${newStatus ? 'Active' : 'Deactivated'}.`,
-      newStatus ? 'success' : 'info'
-    );
-
-    // Call backend endpoint if available
     try {
-      await apiClient.patch(`/admin/users/${user.id}/status`, { is_active: newStatus });
-    } catch {
-      // Endpoint may not be deployed yet; local state already updated
+      await apiClient.patch(`/admin/users/${user.id}/status`, { isActive: newStatus, is_active: newStatus });
+      addToast(
+        `User account "${user.full_name}" is now ${newStatus ? 'Active' : 'Deactivated'}.`,
+        newStatus ? 'success' : 'info'
+      );
+    } catch (err: any) {
+      // Revert optimistic update on rejection
+      setUsers((prev) =>
+        prev.map((u) => (u.id === user.id ? { ...u, is_active: user.is_active } : u))
+      );
+      const msg = err.response?.data?.error?.message || err.message || 'Failed to update user status';
+      addToast(msg, 'error');
     }
   };
 
@@ -278,23 +281,20 @@ export const AdminPage: React.FC = () => {
     const newRole = targetRole;
 
     try {
-      // Call backend PATCH endpoint if available
       await apiClient.patch(`/admin/users/${selectedUser.id}/role`, { role: newRole });
-    } catch {
-      // Backend contract fallback: proceed with optimistic update
-    } finally {
-      // Instant UI state update
       setUsers((prev) =>
         prev.map((u) => (u.id === selectedUser.id ? { ...u, role: newRole } : u))
       );
-
-      setIsUpdatingRole(false);
       setIsRoleModalOpen(false);
-
       addToast(
         `✓ Role updated for ${selectedUser.full_name}: changed from ${prevRole} to ${newRole}.`,
         'success'
       );
+    } catch (err: any) {
+      const msg = err.response?.data?.error?.message || err.message || 'Failed to update user role';
+      addToast(msg, 'error');
+    } finally {
+      setIsUpdatingRole(false);
     }
   };
 
@@ -307,14 +307,20 @@ export const AdminPage: React.FC = () => {
 
     try {
       // Call backend PUT endpoint
-      await apiClient.put('/admin/company', companyForm);
-    } catch {
-      // Fallback to local state
-    } finally {
-      setCompany({ ...companyForm });
-      setIsSavingCompany(false);
+      const res = await apiClient.put('/admin/company', companyForm);
+      if (res.data?.company) {
+        setCompany(res.data.company);
+        setCompanyForm(res.data.company);
+      } else {
+        setCompany({ ...companyForm });
+      }
       setIsCompanyEditing(false);
       addToast('✓ Company workspace settings saved successfully!', 'success');
+    } catch (err: any) {
+      const msg = err.response?.data?.error?.message || err.message || 'Failed to save company settings';
+      addToast(msg, 'error');
+    } finally {
+      setIsSavingCompany(false);
     }
   };
 
@@ -335,52 +341,57 @@ export const AdminPage: React.FC = () => {
     }
 
     setIsInviting(true);
-    const newUser: AdminUser = {
-      id: `usr-${Date.now().toString().slice(-4)}`,
-      firebase_uid: `fb-${Date.now().toString().slice(-6)}`,
-      full_name: newUserName.trim(),
-      email: newUserEmail.trim(),
-      role: newUserRole,
-      is_active: true,
-      created_at: new Date().toISOString(),
-      last_active: 'Just invited',
-    };
-
     try {
-      await apiClient.post('/admin/users/invite', {
-        full_name: newUser.full_name,
-        email: newUser.email,
-        role: newUser.role,
+      const response = await apiClient.post('/admin/users/invite', {
+        fullName: newUserName.trim(),
+        full_name: newUserName.trim(),
+        email: newUserEmail.trim(),
+        role: newUserRole,
       });
-    } catch {
-      // Offline fallback
-    } finally {
-      setUsers((prev) => [newUser, ...prev]);
-      setIsInviting(false);
+      const createdUser = response.data?.user;
+      if (createdUser) {
+        setUsers((prev) => [createdUser, ...prev.filter((u) => u.id !== createdUser.id)]);
+      } else {
+        const newUser: AdminUser = {
+          id: `usr-${Date.now().toString().slice(-4)}`,
+          firebase_uid: `fb-${Date.now().toString().slice(-6)}`,
+          full_name: newUserName.trim(),
+          email: newUserEmail.trim(),
+          role: newUserRole,
+          is_active: true,
+          created_at: new Date().toISOString(),
+          last_active: 'Just invited',
+        };
+        setUsers((prev) => [newUser, ...prev]);
+      }
       setIsInviteModalOpen(false);
       setNewUserName('');
       setNewUserEmail('');
       setNewUserRole('HR');
-      addToast(`✓ Invitation sent to ${newUser.email} with ${newUser.role} privileges.`, 'success');
+      addToast(`✓ Invitation sent to ${newUserEmail.trim()} with ${newUserRole} privileges.`, 'success');
+    } catch (err: any) {
+      const msg = err.response?.data?.error?.message || err.message || 'Failed to invite user';
+      addToast(msg, 'error');
+    } finally {
+      setIsInviting(false);
     }
   };
 
   // ---------------------------------------------------------------------------
-  // 8. Custom Claims Sync Simulation
+  // 8. Custom Claims Sync
   // ---------------------------------------------------------------------------
   const handleSyncClaims = async () => {
     setIsSyncingClaims(true);
     try {
-      await apiClient.post('/auth/sync-claims');
-      addToast('✓ All user custom claims synchronized with Firebase Auth Emulator!', 'success');
-    } catch {
-      setTimeout(() => {
-        setIsSyncingClaims(false);
-        addToast('✓ All user custom claims synchronized with Firebase Auth Emulator (port 9099)!', 'success');
-      }, 700);
-      return;
+      const res = await apiClient.post('/auth/sync-claims');
+      const msg = res.data?.message || '✓ All user custom claims synchronized with Firebase Auth Emulator!';
+      addToast(msg, 'success');
+    } catch (err: any) {
+      const msg = err.response?.data?.error?.message || err.message || 'Claims synchronization notice';
+      addToast(msg, 'info');
+    } finally {
+      setIsSyncingClaims(false);
     }
-    setIsSyncingClaims(false);
   };
 
   // Helper for Role Badges

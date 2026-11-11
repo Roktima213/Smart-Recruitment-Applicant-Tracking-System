@@ -71,6 +71,7 @@ export const JobsPage: React.FC = () => {
   const handleTypeChange = (type: string) => {
     setSelectedType(type);
     updateFilters({
+      employment_type: type !== 'All Types' ? type : undefined,
       page: 1,
     });
   };
@@ -84,6 +85,7 @@ export const JobsPage: React.FC = () => {
       q: undefined,
       department: undefined,
       location: undefined,
+      employment_type: undefined,
       status: 'PUBLISHED',
       page: 1,
     });
@@ -96,9 +98,10 @@ export const JobsPage: React.FC = () => {
   };
 
   const formatSalary = (min?: number | null, max?: number | null) => {
-    if (!min && !max) return 'Competitive';
-    if (min && !max) return `From $${(min / 1000).toFixed(0)}k`;
-    if (!min && max) return `Up to $${(max / 1000).toFixed(0)}k`;
+    if (min == null && max == null) return 'Competitive';
+    if (min === 0 && (max === 0 || max == null)) return 'Unpaid / Volunteer';
+    if (min != null && max == null) return `From $${(min / 1000).toFixed(0)}k`;
+    if (min == null && max != null) return `Up to $${(max / 1000).toFixed(0)}k`;
     return `$${(min! / 1000).toFixed(0)}k - $${(max! / 1000).toFixed(0)}k`;
   };
 
@@ -199,7 +202,7 @@ export const JobsPage: React.FC = () => {
           </div>
 
           <div className="text-slate-500">
-            Showing <span className="font-semibold text-slate-800">{filteredJobs.length}</span> open positions
+            Showing <span className="font-semibold text-slate-800">{pagination.total || filteredJobs.length}</span> open positions
           </div>
         </div>
       </div>

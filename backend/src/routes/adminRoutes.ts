@@ -6,6 +6,8 @@ import {
   updateUserStatus,
   getCompany,
   updateCompany,
+  inviteUser,
+  syncAllClaims,
 } from '../controllers/adminController';
 
 const router = Router();
@@ -19,6 +21,18 @@ router.use(requireRole(['ADMIN']));
  * List all registered users with role and company information
  */
 router.get('/users', listAllUsers);
+
+/**
+ * POST /api/admin/users/invite
+ * Invite/provision a new user with designated role
+ */
+router.post('/users/invite', inviteUser);
+
+/**
+ * POST /api/admin/users/sync-claims
+ * Synchronize all active user claims with Firebase Admin Auth
+ */
+router.post('/users/sync-claims', syncAllClaims);
 
 /**
  * PATCH /api/admin/users/:id/role

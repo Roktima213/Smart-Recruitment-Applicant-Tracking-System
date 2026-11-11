@@ -1,6 +1,10 @@
-import { pool, checkDatabaseConnection } from './database';
+import { pool, checkDatabaseConnection, closeDatabasePool } from './database';
 
 describe('Database Configuration & Pool', () => {
+  afterAll(async () => {
+    await closeDatabasePool();
+  });
+
   it('should initialize pool with expected configuration', () => {
     expect(pool).toBeDefined();
     expect(typeof pool.query).toBe('function');

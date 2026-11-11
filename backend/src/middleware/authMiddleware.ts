@@ -94,6 +94,53 @@ export async function authenticateFirebase(
 }
 
 /**
+ * Optional Authentication Middleware:
+ * Inspects Authorization header if provided and populates req.user.
+ * If header is absent or invalid, seamlessly allows request to proceed as anonymous guest.
+ */
+export async function optionalAuthenticateFirebase(
+  req: Request,
+  _res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const rawHeader = req.headers.authorization;
+    const authHeader = Array.isArray(rawHeader) ? rawHeader[0] : rawHeader;
+
+    if (!authHeader) {
+      return next();
+    }
+
+    const match = authHeader.match(/^Bearer\s+(\S+)/i);
+    if (!match || !match[1]) {
+      return next();
+    }
+
+    const token = match[1].trim();
+    if (!token) {
+      return next();
+    }
+
+    const decodedToken = await verifyFirebaseIdToken(token);
+    const isUserActive = decodedToken.isActive ?? decodedToken.is_active ?? true;
+
+    if (isUserActive !== false) {
+      req.user = {
+        ...decodedToken,
+        uid: decodedToken.uid,
+        email: decodedToken.email,
+        role: (decodedToken.role as string) || 'CANDIDATE',
+        companyId: (decodedToken.companyId as string) || null,
+        isActive: isUserActive,
+      };
+    }
+  } catch {
+    // If token verification fails, allow unauthenticated read to continue
+  }
+  next();
+}
+
+/**
  * Role hierarchy levels for RBAC (SEC-06):
  * SUPER_ADMIN (40) > ADMIN (30) > HR (20) > CANDIDATE (10)
  */

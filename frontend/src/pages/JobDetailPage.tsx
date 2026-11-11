@@ -71,9 +71,10 @@ export const JobDetailPage: React.FC = () => {
   };
 
   const formatSalary = (min?: number | null, max?: number | null) => {
-    if (!min && !max) return 'Competitive / Unspecified';
-    if (min && !max) return `From $${min.toLocaleString()}/yr`;
-    if (!min && max) return `Up to $${max.toLocaleString()}/yr`;
+    if (min == null && max == null) return 'Competitive / Unspecified';
+    if (min === 0 && (max === 0 || max == null)) return 'Unpaid / Volunteer';
+    if (min != null && max == null) return `From $${min.toLocaleString()}/yr`;
+    if (min == null && max != null) return `Up to $${max.toLocaleString()}/yr`;
     return `$${min?.toLocaleString()} - $${max?.toLocaleString()}/yr`;
   };
 
