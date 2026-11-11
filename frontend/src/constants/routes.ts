@@ -11,6 +11,7 @@ export const ROUTES = {
   HR_ANALYTICS: '/hr/analytics',
   ADMIN: '/admin',
   SETTINGS: '/settings',
+  FORBIDDEN: '/403',
 } as const;
 
 export type AppRoute = (typeof ROUTES)[keyof typeof ROUTES];

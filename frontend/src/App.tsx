@@ -2,6 +2,9 @@ import React from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { ROUTES } from './constants/routes';
 import { AuthProvider } from './context/AuthContext';
+import { ToastProvider } from './context/ToastContext';
+import { ErrorBoundary } from './components/common/ErrorBoundary';
+import { NetworkStatusBanner } from './components/common/NetworkStatusBanner';
 import { AppLayout } from './components/layout/AppLayout';
 import { ProtectedRoute } from './components/auth/ProtectedRoute';
 
@@ -18,44 +21,51 @@ import { HrOffersPage } from './pages/hr/HrOffersPage';
 import { HrAnalyticsPage } from './pages/hr/HrAnalyticsPage';
 import { AdminPage } from './pages/AdminPage';
 import { NotFoundPage } from './pages/NotFoundPage';
+import { ForbiddenPage } from './pages/ForbiddenPage';
 
 export const App: React.FC = () => {
   return (
-    <AuthProvider>
-      <BrowserRouter>
-        <Routes>
-          <Route element={<AppLayout />}>
-            {/* Public Routes */}
-            <Route path={ROUTES.HOME} element={<HomePage />} />
-            <Route path={ROUTES.LOGIN} element={<LoginPage />} />
-            <Route path={ROUTES.REGISTER} element={<RegisterPage />} />
-            <Route path={ROUTES.JOBS} element={<JobsPage />} />
+    <ErrorBoundary>
+      <ToastProvider>
+        <NetworkStatusBanner />
+        <AuthProvider>
+          <BrowserRouter>
+            <Routes>
+              <Route element={<AppLayout />}>
+                {/* Public Routes */}
+                <Route path={ROUTES.HOME} element={<HomePage />} />
+                <Route path={ROUTES.LOGIN} element={<LoginPage />} />
+                <Route path={ROUTES.REGISTER} element={<RegisterPage />} />
+                <Route path={ROUTES.JOBS} element={<JobsPage />} />
+                <Route path={ROUTES.FORBIDDEN} element={<ForbiddenPage />} />
 
-            {/* Candidate Portal (Authenticated) */}
-            <Route element={<ProtectedRoute allowedRoles={['ADMIN', 'HR', 'CANDIDATE']} />}>
-              <Route path={ROUTES.CANDIDATE} element={<CandidateDashboardPage />} />
-            </Route>
+                {/* Candidate Portal (Authenticated) */}
+                <Route element={<ProtectedRoute allowedRoles={['ADMIN', 'HR', 'CANDIDATE']} />}>
+                  <Route path={ROUTES.CANDIDATE} element={<CandidateDashboardPage />} />
+                </Route>
 
-            {/* HR Workspace Routes (HR and ADMIN only) */}
-            <Route element={<ProtectedRoute allowedRoles={['ADMIN', 'HR']} />}>
-              <Route path={ROUTES.HR_JOBS} element={<HrJobsPage />} />
-              <Route path={ROUTES.HR_PIPELINE} element={<HrPipelinePage />} />
-              <Route path={ROUTES.HR_INTERVIEWS} element={<HrInterviewsPage />} />
-              <Route path={ROUTES.HR_OFFERS} element={<HrOffersPage />} />
-              <Route path={ROUTES.HR_ANALYTICS} element={<HrAnalyticsPage />} />
-            </Route>
+                {/* HR Workspace Routes (HR and ADMIN only) */}
+                <Route element={<ProtectedRoute allowedRoles={['ADMIN', 'HR']} />}>
+                  <Route path={ROUTES.HR_JOBS} element={<HrJobsPage />} />
+                  <Route path={ROUTES.HR_PIPELINE} element={<HrPipelinePage />} />
+                  <Route path={ROUTES.HR_INTERVIEWS} element={<HrInterviewsPage />} />
+                  <Route path={ROUTES.HR_OFFERS} element={<HrOffersPage />} />
+                  <Route path={ROUTES.HR_ANALYTICS} element={<HrAnalyticsPage />} />
+                </Route>
 
-            {/* Admin Security Routes (ADMIN only) */}
-            <Route element={<ProtectedRoute allowedRoles={['ADMIN']} />}>
-              <Route path={ROUTES.ADMIN} element={<AdminPage />} />
-            </Route>
+                {/* Admin Security Routes (ADMIN only) */}
+                <Route element={<ProtectedRoute allowedRoles={['ADMIN']} />}>
+                  <Route path={ROUTES.ADMIN} element={<AdminPage />} />
+                </Route>
 
-            {/* Fallback 404 Route */}
-            <Route path="*" element={<NotFoundPage />} />
-          </Route>
-        </Routes>
-      </BrowserRouter>
-    </AuthProvider>
+                {/* Fallback 404 Route */}
+                <Route path="*" element={<NotFoundPage />} />
+              </Route>
+            </Routes>
+          </BrowserRouter>
+        </AuthProvider>
+      </ToastProvider>
+    </ErrorBoundary>
   );
 };
 
