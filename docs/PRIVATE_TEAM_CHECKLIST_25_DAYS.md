@@ -167,15 +167,15 @@ Establish Schema / API Contract               Build UI & State using Mock Data (
 **Milestone Release:** `v0.2.0-week2`
 
 #### 🔹 Day 8 (Floor 8): Job Creation, Editing & Lifecycle State Transitions
-* [ ] **Cloud:** `perf(db): add composite indexes for job filtering and search queries`
+* [x] **Cloud:** `perf(db): add composite indexes for job filtering and search queries`
   * Add PostgreSQL indexes on `(status, department, location, published_at)`.
-* [ ] **Backend:** `feat(jobs-api): implement job crud and status transition endpoints`
+* [x] **Backend:** `feat(jobs-api): implement job crud and status transition endpoints`
   * Build `POST /api/jobs`, `PUT /api/jobs/:id`, `PATCH /api/jobs/:id/status` (ADMIN/HR only).
-* [ ] **Frontend 1:** `feat(jobs-ui): build hr job management dashboard and create edit modal`
+* [x] **Frontend 1:** `feat(jobs-ui): build hr job management dashboard and create edit modal`
   * Build Page 2: Job Management (`/hr/jobs`) UI with Job Modal (Draft, Published, Closed).
-* [ ] **Frontend 2:** `feat(jobs-ui): wire job crud state hooks and status transition handlers`
+* [x] **Frontend 2:** `feat(jobs-ui): wire job crud state hooks and status transition handlers`
   * Wire job creation form state, status transition buttons, and Zod client validation.
-* [ ] **Leader / DevOps:** `test(jobs): add api integration tests for job crud and role guards`
+* [x] **Leader / DevOps:** `test(jobs): add api integration tests for job crud and role guards`
   * Add Supertest integration tests verifying Candidate gets 403 when creating or editing jobs.
 * **Daily Done Criteria:** HR can create and publish jobs; Candidate cannot access `/api/jobs` mutation routes.
 
