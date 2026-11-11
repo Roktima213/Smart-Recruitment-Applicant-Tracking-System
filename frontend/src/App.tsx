@@ -13,6 +13,7 @@ import { HomePage } from './pages/HomePage';
 import { LoginPage } from './pages/LoginPage';
 import { RegisterPage } from './pages/RegisterPage';
 import { JobsPage } from './pages/JobsPage';
+import { JobDetailPage } from './pages/JobDetailPage';
 import { CandidateDashboardPage } from './pages/CandidateDashboardPage';
 import { HrJobsPage } from './pages/hr/HrJobsPage';
 import { HrPipelinePage } from './pages/hr/HrPipelinePage';
@@ -37,6 +38,7 @@ export const App: React.FC = () => {
                 <Route path={ROUTES.LOGIN} element={<LoginPage />} />
                 <Route path={ROUTES.REGISTER} element={<RegisterPage />} />
                 <Route path={ROUTES.JOBS} element={<JobsPage />} />
+                <Route path={ROUTES.JOB_DETAIL} element={<JobDetailPage />} />
                 <Route path={ROUTES.FORBIDDEN} element={<ForbiddenPage />} />
 
                 {/* Candidate Portal (Authenticated) */}
