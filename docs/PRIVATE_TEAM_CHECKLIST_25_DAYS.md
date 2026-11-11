@@ -134,15 +134,15 @@ Establish Schema / API Contract               Build UI & State using Mock Data (
 ---
 
 #### 🔹 Day 6 (Floor 6): Admin Role Management, Protected Routes & Synthetic Seeding
-* [ ] **Cloud:** `feat(seed): create synthetic firebase emulator and postgresql seed script`
+* [x] **Cloud:** `feat(seed): create synthetic firebase emulator and postgresql seed script`
   * Write `database/seed/seed.ts` provisioning demo Admin, HR, and Candidate accounts.
-* [ ] **Backend:** `feat(admin-api): add user role management and company config endpoints`
+* [x] **Backend:** `feat(admin-api): add user role management and company config endpoints`
   * Implement `GET /api/admin/users`, `PATCH /api/admin/users/:id/role`, `PUT /api/admin/company`.
-* [ ] **Frontend 1:** `feat(admin-ui): build admin overview dashboard and company settings view`
+* [x] **Frontend 1:** `feat(admin-ui): build admin overview dashboard and company settings view`
   * Build Page 1: Admin Overview (`/admin`) UI with user table, role select, and company form.
-* [ ] **Frontend 2:** `feat(admin-ui): implement protected route guard and admin user management hooks`
+* [x] **Frontend 2:** `feat(admin-ui): implement protected route guard and admin user management hooks`
   * Build `<ProtectedRoute allowedRoles={['ADMIN']} />` wrapper and role update mutation hook.
-* [ ] **Leader / DevOps:** `test(rbac): add automated role matrix tests for admin endpoints`
+* [x] **Leader / DevOps:** `test(rbac): add automated role matrix tests for admin endpoints`
   * Automate `npm run seed` and write RBAC tests proving HR/Candidates receive 403 on `/api/admin/*`.
 * **Daily Done Criteria:** `npm run seed` populates demo users; Admin can change user roles from the UI; Candidate gets redirected/403.
 
