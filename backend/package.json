@@ -7,7 +7,8 @@
     "dev": "node ./node_modules/ts-node-dev/lib/bin.js --respawn --transpile-only src/server.ts",
     "build": "node ./node_modules/typescript/bin/tsc",
     "start": "node dist/server.js",
-    "test": "node ./node_modules/jest/bin/jest.js --runInBand --detectOpenHandles"
+    "test": "node ./node_modules/jest/bin/jest.js --runInBand --detectOpenHandles",
+    "seed": "node ./node_modules/ts-node/dist/bin.js --project ./tsconfig.json ../database/seed/seed.ts"
   },
   "keywords": [
     "recruitment",
