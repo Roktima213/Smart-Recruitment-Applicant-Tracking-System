@@ -17,6 +17,8 @@ out/
 *.pem
 *.key
 *serviceAccount*.json
+# Firebase Emulators data
+.firebase-emulator-data/
 firebase-debug.log*
 firestore-debug.log*
 ui-debug.log*
