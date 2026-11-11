@@ -149,15 +149,15 @@ Establish Schema / API Contract               Build UI & State using Mock Data (
 ---
 
 #### 🔹 Day 7 (Floor 7): Week 1 Milestone Verification & Full Foundation Audit
-* [ ] **Cloud:** `docs(cloud): add firebase emulator persistence and data retention guide`
+* [x] **Cloud:** `docs(cloud): add firebase emulator persistence and data retention guide`
   * Verify emulator import/export persistence scripts and document retention policies.
-* [ ] **Backend:** `feat(backend): add global error handler zod validator and api spec docs`
+* [x] **Backend:** `feat(backend): add global error handler zod validator and api spec docs`
   * Add global error handling middleware, Zod validation, and publish `docs/api-spec.md`.
-* [ ] **Frontend 1:** `feat(ui): add error boundary 403 404 pages and loading skeletons`
+* [x] **Frontend 1:** `feat(ui): add error boundary 403 404 pages and loading skeletons`
   * Build 403 Forbidden, 404 Not Found, and skeleton loading card components.
-* [ ] **Frontend 2:** `feat(ui): add global toast notification provider and network status listener`
+* [x] **Frontend 2:** `feat(ui): add global toast notification provider and network status listener`
   * Build toast notification context for success/error alerts and offline banner.
-* [ ] **Leader / DevOps:** `ci(release): finalize week 1 ci gate pipeline and tag v0.1.0-week1`
+* [x] **Leader / DevOps:** `ci(release): finalize week 1 ci gate pipeline and tag v0.1.0-week1`
   * Run CI gate (migrate → seed → lint → test → build) and tag `v0.1.0-week1`.
 * **Daily Done Criteria:** All tests pass in CI; release tag `v0.1.0-week1` pushed to GitHub.
 
