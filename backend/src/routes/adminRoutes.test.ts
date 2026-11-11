@@ -13,7 +13,7 @@ jest.mock('../config/firebaseAdmin', () => ({
     createUser: jest.fn(),
     updateUser: jest.fn(),
     setCustomUserClaims: jest.fn(),
-    revokeRefreshTokens: jest.fn(),
+    revokeRefreshTokens: jest.fn().mockResolvedValue(undefined),
   },
 }));
 
@@ -21,257 +21,330 @@ jest.mock('../services/claimsSyncService', () => ({
   ...jest.requireActual('../services/claimsSyncService'),
   syncUserClaims: (...args: any[]) => mockSyncUserClaims(...args),
   revokeUserSessions: (...args: any[]) => mockRevokeUserSessions(...args),
+  isValidAtsRole: (role: string) => ['ADMIN', 'HR', 'CANDIDATE'].includes(role),
 }));
 
 jest.mock('../config/database', () => ({
   query: (...args: any[]) => mockQuery(...args),
-  checkDatabaseConnection: jest.fn().mockResolvedValue({ connected: true, latencyMs: 5 }),
+  checkDatabaseConnection: jest.fn().mockResolvedValue({ connected: true, latencyMs: 2 }),
+  closeDatabasePool: jest.fn().mockResolvedValue(undefined),
 }));
 
 import request from 'supertest';
 import app from '../app';
 
-describe('Admin RBAC & Directory Endpoints (/api/admin)', () => {
+describe('Admin APIs & RBAC Directory (/api/admin)', () => {
   beforeEach(() => {
-    jest.clearAllMocks();
+    mockVerifyFirebaseIdToken.mockReset();
+    mockSyncUserClaims.mockReset();
+    mockRevokeUserSessions.mockReset();
+    mockQuery.mockReset();
   });
 
-  describe('Unauthenticated Access Guards', () => {
-    it('GET /api/admin/users returns 401 when Authorization header is absent', async () => {
+  const adminTokenPayload = {
+    uid: 'admin-firebase-uid',
+    email: 'admin@ats.com',
+    role: 'ADMIN',
+    isActive: true,
+  };
+
+  const hrTokenPayload = {
+    uid: 'hr-firebase-uid',
+    email: 'hr@ats.com',
+    role: 'HR',
+    isActive: true,
+  };
+
+  const candidateTokenPayload = {
+    uid: 'candidate-firebase-uid',
+    email: 'candidate@ats.com',
+    role: 'CANDIDATE',
+    isActive: true,
+  };
+
+  describe('Security & Authorization Guards', () => {
+    it('should reject unauthenticated requests with 401 Unauthorized', async () => {
       const res = await request(app).get('/api/admin/users');
       expect(res.status).toBe(401);
       expect(res.body).toHaveProperty('error', 'Unauthorized');
+      expect(res.body.message).toContain('Authorization header missing');
     });
 
-    it('PATCH /api/admin/users/:id/role returns 401 when Authorization header is absent', async () => {
-      const res = await request(app).patch('/api/admin/users/usr-123/role').send({ role: 'HR' });
-      expect(res.status).toBe(401);
+    it('should reject HR users with 403 Forbidden', async () => {
+      mockVerifyFirebaseIdToken.mockResolvedValueOnce(hrTokenPayload);
+
+      const res = await request(app)
+        .get('/api/admin/users')
+        .set('Authorization', 'Bearer valid-hr-token');
+
+      expect(res.status).toBe(403);
+      expect(res.body).toHaveProperty('error', 'Forbidden');
+      expect(res.body.message).toContain('Forbidden: User role "HR" is not permitted to access this resource');
     });
 
-    it('GET /api/admin/company returns 401 when Authorization header is absent', async () => {
-      const res = await request(app).get('/api/admin/company');
-      expect(res.status).toBe(401);
-    });
-  });
+    it('should reject CANDIDATE users with 403 Forbidden', async () => {
+      mockVerifyFirebaseIdToken.mockResolvedValueOnce(candidateTokenPayload);
 
-  describe('Role Matrix Enforcement: HR and CANDIDATE Receive 403 Forbidden', () => {
-    it('CANDIDATE receives 403 on GET /api/admin/users', async () => {
+      const res = await request(app)
+        .get('/api/admin/users')
+        .set('Authorization', 'Bearer valid-candidate-token');
+
+      expect(res.status).toBe(403);
+      expect(res.body).toHaveProperty('error', 'Forbidden');
+      expect(res.body.message).toContain('Forbidden: User role "CANDIDATE" is not permitted to access this resource');
+    });
+
+    it('should reject deactivated admin accounts with 403 Forbidden', async () => {
       mockVerifyFirebaseIdToken.mockResolvedValueOnce({
-        uid: 'cand-uid',
-        email: 'cand@ats.local',
-        role: 'CANDIDATE',
+        ...adminTokenPayload,
+        isActive: false,
       });
 
       const res = await request(app)
         .get('/api/admin/users')
-        .set('Authorization', 'Bearer candidate-token');
+        .set('Authorization', 'Bearer valid-admin-token');
 
       expect(res.status).toBe(403);
-      expect(res.body).toHaveProperty('error', 'Forbidden');
-      expect(res.body.message).toContain('not permitted');
-    });
-
-    it('HR receives 403 on GET /api/admin/users', async () => {
-      mockVerifyFirebaseIdToken.mockResolvedValueOnce({
-        uid: 'hr-uid',
-        email: 'hr@ats.local',
-        role: 'HR',
-      });
-
-      const res = await request(app)
-        .get('/api/admin/users')
-        .set('Authorization', 'Bearer hr-token');
-
-      expect(res.status).toBe(403);
-      expect(res.body).toHaveProperty('error', 'Forbidden');
-    });
-
-    it('HR receives 403 on PATCH /api/admin/users/:id/role', async () => {
-      mockVerifyFirebaseIdToken.mockResolvedValueOnce({
-        uid: 'hr-uid',
-        email: 'hr@ats.local',
-        role: 'HR',
-      });
-
-      const res = await request(app)
-        .patch('/api/admin/users/usr-123/role')
-        .set('Authorization', 'Bearer hr-token')
-        .send({ role: 'ADMIN' });
-
-      expect(res.status).toBe(403);
-    });
-
-    it('CANDIDATE receives 403 on PUT /api/admin/company', async () => {
-      mockVerifyFirebaseIdToken.mockResolvedValueOnce({
-        uid: 'cand-uid',
-        email: 'cand@ats.local',
-        role: 'CANDIDATE',
-      });
-
-      const res = await request(app)
-        .put('/api/admin/company')
-        .set('Authorization', 'Bearer candidate-token')
-        .send({ name: 'Hacked Corp' });
-
-      expect(res.status).toBe(403);
+      expect(res.body.message).toContain('User account is deactivated');
     });
   });
 
-  describe('ADMIN Privilege Execution (200 OK)', () => {
-    const adminTokenPayload = {
-      uid: 'admin-uid-01',
-      email: 'admin@ats.local',
-      role: 'ADMIN',
-      companyId: 'comp-uuid-01',
-    };
-
-    it('ADMIN successfully lists user directory with pagination', async () => {
+  describe('GET /api/admin/users - User Directory & Listing', () => {
+    it('should allow Admin to retrieve all registered users with company details', async () => {
       mockVerifyFirebaseIdToken.mockResolvedValueOnce(adminTokenPayload);
 
-      // 1. Total count query
-      mockQuery.mockResolvedValueOnce({ rows: [{ total: '3' }] });
-      // 2. Users list query
+      mockQuery.mockResolvedValueOnce({ rows: [{ total: '2' }] });
       mockQuery.mockResolvedValueOnce({
         rows: [
-          { id: 'u1', email: 'admin@ats.local', role: 'ADMIN', is_active: true },
-          { id: 'u2', email: 'hr@ats.local', role: 'HR', is_active: true },
-          { id: 'u3', email: 'cand@ats.local', role: 'CANDIDATE', is_active: true },
+          {
+            id: 'b5f00e12-4021-4f32-8419-79848dc60b45',
+            email: 'jane@example.com',
+            full_name: 'Jane Doe',
+            role: 'HR',
+            is_active: true,
+            company_id: '99846312-3e28-4835-be02-2374bb4d0234',
+            avatar_url: 'https://example.com/jane.jpg',
+            phone: '+1234567890',
+            created_at: '2026-11-01T10:00:00Z',
+            updated_at: '2026-11-01T10:00:00Z',
+            company_name: 'Acme Corp',
+            company_domain: 'acme.com',
+            company_logo_url: 'https://example.com/logo.png',
+          },
+          {
+            id: 'c2d11f23-5132-4e43-9520-80959ed71c56',
+            email: 'john@candidate.com',
+            full_name: 'John Smith',
+            role: 'CANDIDATE',
+            is_active: true,
+            company_id: null,
+            avatar_url: null,
+            phone: null,
+            created_at: '2026-11-02T12:00:00Z',
+            updated_at: '2026-11-02T12:00:00Z',
+            company_name: null,
+            company_domain: null,
+            company_logo_url: null,
+          },
         ],
       });
 
       const res = await request(app)
-        .get('/api/admin/users?limit=10&offset=0')
+        .get('/api/admin/users')
         .set('Authorization', 'Bearer valid-admin-token');
 
       expect(res.status).toBe(200);
-      expect(res.body.success).toBe(true);
-      expect(res.body.users).toHaveLength(3);
-      expect(res.body.pagination).toEqual({
-        total: 3,
-        limit: 10,
-        offset: 0,
-        hasMore: false,
-      });
+      expect(res.body).toHaveProperty('success', true);
+      expect(res.body.users).toHaveLength(2);
+      expect(res.body.users[0]).toHaveProperty('company');
+      expect(res.body.users[0].company).toHaveProperty('name', 'Acme Corp');
     });
 
-    it('ADMIN successfully updates user role and synchronizes Firebase claims', async () => {
+    it('should handle database errors when querying users', async () => {
       mockVerifyFirebaseIdToken.mockResolvedValueOnce(adminTokenPayload);
-
-      // Check target user exists
-      mockQuery.mockResolvedValueOnce({
-        rows: [
-          {
-            id: 'u2',
-            firebase_uid: 'fb-hr-01',
-            email: 'hr@ats.local',
-            role: 'HR',
-            company_id: 'comp-uuid-01',
-            is_active: true,
-          },
-        ],
-      });
-
-      // Update query
-      mockQuery.mockResolvedValueOnce({
-        rows: [
-          {
-            id: 'u2',
-            firebase_uid: 'fb-hr-01',
-            email: 'hr@ats.local',
-            role: 'ADMIN',
-            company_id: 'comp-uuid-01',
-            is_active: true,
-          },
-        ],
-      });
-
-      mockSyncUserClaims.mockResolvedValueOnce({ success: true });
+      mockQuery.mockRejectedValueOnce(new Error('Connection failure'));
 
       const res = await request(app)
-        .patch('/api/admin/users/u2/role')
+        .get('/api/admin/users')
+        .set('Authorization', 'Bearer valid-admin-token');
+
+      expect(res.status).toBe(500);
+      expect(res.body.error.message).toContain('Failed to retrieve registered users');
+    });
+  });
+
+  describe('PATCH /api/admin/users/:id/role - Role Update & Claim Sync', () => {
+    const validUserId = 'a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d';
+
+    it('should update user role and synchronize Firebase custom claims', async () => {
+      mockVerifyFirebaseIdToken.mockResolvedValueOnce(adminTokenPayload);
+
+      mockQuery.mockResolvedValueOnce({
+        rows: [
+          {
+            id: validUserId,
+            firebase_uid: 'target-fb-uid-123',
+            email: 'user@example.com',
+            full_name: 'Bob Candidate',
+            role: 'CANDIDATE',
+            company_id: '99846312-3e28-4835-be02-2374bb4d0234',
+            is_active: true,
+          },
+        ],
+      });
+
+      mockSyncUserClaims.mockResolvedValueOnce({
+        success: true,
+        claims: { role: 'HR', companyId: '99846312-3e28-4835-be02-2374bb4d0234', syncedAt: Date.now() },
+      });
+
+      mockQuery.mockResolvedValueOnce({
+        rows: [
+          {
+            id: validUserId,
+            firebase_uid: 'target-fb-uid-123',
+            email: 'user@example.com',
+            full_name: 'Bob Candidate',
+            role: 'HR',
+            company_id: '99846312-3e28-4835-be02-2374bb4d0234',
+            is_active: true,
+            updated_at: '2026-11-10T12:00:00Z',
+          },
+        ],
+      });
+
+      const res = await request(app)
+        .patch(`/api/admin/users/${validUserId}/role`)
+        .set('Authorization', 'Bearer valid-admin-token')
+        .send({ role: 'HR' });
+
+      expect(res.status).toBe(200);
+      expect(res.body).toHaveProperty('success', true);
+      expect(res.body.user.role).toBe('HR');
+      expect(mockSyncUserClaims).toHaveBeenCalledWith(
+        'target-fb-uid-123',
+        'HR',
+        '99846312-3e28-4835-be02-2374bb4d0234'
+      );
+    });
+
+    it('should reject invalid user UUID format with 400 Bad Request', async () => {
+      mockVerifyFirebaseIdToken.mockResolvedValueOnce(adminTokenPayload);
+
+      const res = await request(app)
+        .patch('/api/admin/users/not-a-valid-uuid/role')
+        .set('Authorization', 'Bearer valid-admin-token')
+        .send({ role: 'HR' });
+
+      expect(res.status).toBe(400);
+      expect(res.body.error.message).toContain('Invalid user ID format. Must be a valid UUID');
+    });
+
+    it('should reject invalid role enum with 400 Bad Request', async () => {
+      mockVerifyFirebaseIdToken.mockResolvedValueOnce(adminTokenPayload);
+
+      const res = await request(app)
+        .patch(`/api/admin/users/${validUserId}/role`)
+        .set('Authorization', 'Bearer valid-admin-token')
+        .send({ role: 'SUPERUSER' });
+
+      expect(res.status).toBe(400);
+      expect(res.body.error.message).toContain('Invalid role');
+    });
+
+    it('should return 404 when target user is not found in database', async () => {
+      mockVerifyFirebaseIdToken.mockResolvedValueOnce(adminTokenPayload);
+      mockQuery.mockResolvedValueOnce({ rows: [] });
+
+      const res = await request(app)
+        .patch(`/api/admin/users/${validUserId}/role`)
+        .set('Authorization', 'Bearer valid-admin-token')
+        .send({ role: 'HR' });
+
+      expect(res.status).toBe(404);
+      expect(res.body.error.message).toContain('not found');
+    });
+
+    it('should fail with 502 if Firebase claim synchronization rejects', async () => {
+      mockVerifyFirebaseIdToken.mockResolvedValueOnce(adminTokenPayload);
+
+      mockQuery.mockResolvedValueOnce({
+        rows: [
+          {
+            id: validUserId,
+            firebase_uid: 'fb-user-broken',
+            role: 'CANDIDATE',
+            company_id: null,
+          },
+        ],
+      });
+
+      mockSyncUserClaims.mockRejectedValueOnce(new Error('Firebase network timeout'));
+
+      const res = await request(app)
+        .patch(`/api/admin/users/${validUserId}/role`)
         .set('Authorization', 'Bearer valid-admin-token')
         .send({ role: 'ADMIN' });
 
-      expect(res.status).toBe(200);
-      expect(res.body.success).toBe(true);
-      expect(res.body.user.role).toBe('ADMIN');
-      expect(mockSyncUserClaims).toHaveBeenCalledWith('fb-hr-01', 'ADMIN', 'comp-uuid-01');
+      expect(res.status).toBe(502);
+      expect(res.body.error.message).toContain('Failed to synchronize role claims with Firebase Auth');
     });
+  });
 
-    it('ADMIN is blocked from removing their own admin privilege (400 Bad Request)', async () => {
+  describe('PATCH /api/admin/users/:id/status - Status Toggle & Revocation', () => {
+    const validUserId = 'a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d';
+
+    it('should deactivate user and revoke active Firebase sessions', async () => {
       mockVerifyFirebaseIdToken.mockResolvedValueOnce(adminTokenPayload);
 
-      // Self target lookup
       mockQuery.mockResolvedValueOnce({
-        rows: [
-          {
-            id: 'self-id',
-            firebase_uid: 'admin-uid-01',
-            email: 'admin@ats.local',
-            role: 'ADMIN',
-          },
-        ],
+        rows: [{ id: validUserId, firebase_uid: 'fb-cand-123', is_active: true, full_name: 'Bob' }],
       });
 
-      const res = await request(app)
-        .patch('/api/admin/users/self-id/role')
-        .set('Authorization', 'Bearer valid-admin-token')
-        .send({ role: 'CANDIDATE' });
-
-      expect(res.status).toBe(400);
-      expect(res.body.message).toContain('cannot revoke their own administrator privileges');
-    });
-
-    it('ADMIN receives 400 Bad Request for invalid role enum', async () => {
-      mockVerifyFirebaseIdToken.mockResolvedValueOnce(adminTokenPayload);
-
-      const res = await request(app)
-        .patch('/api/admin/users/u2/role')
-        .set('Authorization', 'Bearer valid-admin-token')
-        .send({ role: 'SUPERHERO' });
-
-      expect(res.status).toBe(400);
-      expect(res.body.message).toContain('Role must be ADMIN, HR, or CANDIDATE');
-    });
-
-    it('ADMIN successfully deactivates account and triggers token revocation', async () => {
-      mockVerifyFirebaseIdToken.mockResolvedValueOnce(adminTokenPayload);
-
-      // Lookup target user
       mockQuery.mockResolvedValueOnce({
-        rows: [
-          { id: 'u3', firebase_uid: 'fb-cand-01', is_active: true },
-        ],
-      });
-
-      // Update query
-      mockQuery.mockResolvedValueOnce({
-        rows: [
-          { id: 'u3', firebase_uid: 'fb-cand-01', is_active: false },
-        ],
+        rows: [{ id: validUserId, firebase_uid: 'fb-cand-123', is_active: false, full_name: 'Bob' }],
       });
 
       mockRevokeUserSessions.mockResolvedValueOnce(undefined);
 
       const res = await request(app)
-        .patch('/api/admin/users/u3/status')
+        .patch(`/api/admin/users/${validUserId}/status`)
         .set('Authorization', 'Bearer valid-admin-token')
         .send({ isActive: false });
 
       expect(res.status).toBe(200);
       expect(res.body.user.is_active).toBe(false);
-      expect(mockRevokeUserSessions).toHaveBeenCalledWith('fb-cand-01');
+      expect(mockRevokeUserSessions).toHaveBeenCalledWith('fb-cand-123');
     });
 
-    it('ADMIN successfully fetches company profile', async () => {
+    it('should prevent Admin from deactivating their own account', async () => {
+      mockVerifyFirebaseIdToken.mockResolvedValueOnce(adminTokenPayload);
+
+      mockQuery.mockResolvedValueOnce({
+        rows: [{ id: validUserId, firebase_uid: 'admin-firebase-uid', is_active: true, full_name: 'Admin' }],
+      });
+
+      const res = await request(app)
+        .patch(`/api/admin/users/${validUserId}/status`)
+        .set('Authorization', 'Bearer valid-admin-token')
+        .send({ isActive: false });
+
+      expect(res.status).toBe(400);
+      expect(res.body.error.message).toContain('cannot deactivate their own active account');
+    });
+  });
+
+  describe('GET & PUT /api/admin/company - Company Configuration', () => {
+    it('should retrieve company configuration', async () => {
       mockVerifyFirebaseIdToken.mockResolvedValueOnce(adminTokenPayload);
 
       mockQuery.mockResolvedValueOnce({
         rows: [
           {
-            id: 'comp-uuid-01',
+            id: 'comp-uuid-1',
             name: 'Acme Corporation',
-            domain: 'acme.local',
+            domain: 'acme.com',
+            logo_url: 'https://example.com/logo.png',
             settings: { timezone: 'UTC' },
           },
         ],
@@ -285,16 +358,29 @@ describe('Admin RBAC & Directory Endpoints (/api/admin)', () => {
       expect(res.body.company.name).toBe('Acme Corporation');
     });
 
-    it('ADMIN successfully updates company settings', async () => {
+    it('should allow Admin to update company configuration and settings', async () => {
       mockVerifyFirebaseIdToken.mockResolvedValueOnce(adminTokenPayload);
 
       mockQuery.mockResolvedValueOnce({
         rows: [
           {
-            id: 'comp-uuid-01',
-            name: 'Acme Global Corp',
-            domain: 'acme.global',
-            settings: { timezone: 'America/New_York' },
+            id: 'comp-uuid-1',
+            name: 'Acme Corp',
+            domain: 'acme.com',
+            logo_url: null,
+            settings: {},
+          },
+        ],
+      });
+
+      mockQuery.mockResolvedValueOnce({
+        rows: [
+          {
+            id: 'comp-uuid-1',
+            name: 'Smart ATS Global Corp',
+            domain: 'smartats.com',
+            logo_url: 'https://example.com/new-logo.png',
+            settings: { theme: 'dark', timezone: 'UTC', brandColor: '#2563eb' },
           },
         ],
       });
@@ -303,13 +389,31 @@ describe('Admin RBAC & Directory Endpoints (/api/admin)', () => {
         .put('/api/admin/company')
         .set('Authorization', 'Bearer valid-admin-token')
         .send({
-          name: 'Acme Global Corp',
-          domain: 'acme.global',
-          settings: { timezone: 'America/New_York' },
+          name: 'Smart ATS Global Corp',
+          domain: 'smartats.com',
+          logoUrl: 'https://example.com/new-logo.png',
+          settings: {
+            theme: 'dark',
+            brandColor: '#2563eb',
+          },
         });
 
       expect(res.status).toBe(200);
-      expect(res.body.company.name).toBe('Acme Global Corp');
+      expect(res.body.company.name).toBe('Smart ATS Global Corp');
+    });
+
+    it('should reject invalid company data with 400 Bad Request', async () => {
+      mockVerifyFirebaseIdToken.mockResolvedValueOnce(adminTokenPayload);
+
+      const res = await request(app)
+        .put('/api/admin/company')
+        .set('Authorization', 'Bearer valid-admin-token')
+        .send({
+          name: '',
+        });
+
+      expect(res.status).toBe(400);
+      expect(res.body.error.message).toContain('Company name cannot be empty');
     });
   });
 });

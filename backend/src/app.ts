@@ -96,6 +96,7 @@ app.get('/api/health', async (_req: Request, res: Response) => {
 
 // Authentication and RBAC endpoints
 app.use('/api/auth', authRoutes);
+app.use('/api/admin', adminRoutes);
 
 // Admin Role Management & System Configuration endpoints
 app.use('/api/admin', adminRoutes);
