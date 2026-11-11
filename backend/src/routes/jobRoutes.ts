@@ -11,12 +11,13 @@ import {
 } from '../controllers/jobController';
 import { authenticateFirebase, requireRole } from '../middleware/authMiddleware';
 import { validateRequest } from '../middleware/validateRequest';
+import { publicCache } from '../middleware/cacheControl';
 
 const router = Router();
 
-// Public & Candidate Read Access
-router.get('/', listJobs);
-router.get('/:id', getJobById);
+// Public & Candidate Read Access with Caching and ETag Validation
+router.get('/', publicCache({ maxAgeSeconds: 60, staleWhileRevalidateSeconds: 30 }), listJobs);
+router.get('/:id', publicCache({ maxAgeSeconds: 60, staleWhileRevalidateSeconds: 30 }), getJobById);
 
 // Staff-Only Protected Mutation Routes (ADMIN and HR)
 router.post(
