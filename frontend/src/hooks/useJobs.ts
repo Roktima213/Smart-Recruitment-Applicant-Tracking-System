@@ -27,6 +27,9 @@ export interface JobFilters {
   status?: string;
   department?: string;
   location?: string;
+  employment_type?: string;
+  min_salary?: number;
+  max_salary?: number;
   q?: string;
   page?: number;
   limit?: number;
@@ -69,6 +72,9 @@ export const useJobs = (initialFilters: JobFilters = {}) => {
       if (filters.status) params.status = filters.status;
       if (filters.department) params.department = filters.department;
       if (filters.location) params.location = filters.location;
+      if (filters.employment_type) params.employment_type = filters.employment_type;
+      if (filters.min_salary) params.min_salary = filters.min_salary;
+      if (filters.max_salary) params.max_salary = filters.max_salary;
       if (filters.page) params.page = filters.page;
       if (filters.limit) params.limit = filters.limit;
 
@@ -166,6 +172,19 @@ export const useJobs = (initialFilters: JobFilters = {}) => {
     [toast, fetchJobs]
   );
 
+  const setPage = useCallback((newPage: number) => {
+    setFilters((prev) => ({ ...prev, page: newPage }));
+  }, []);
+
+  const fetchJobById = useCallback(async (id: string): Promise<JobRecord | null> => {
+    try {
+      const response = await apiClient.get(`/jobs/${id}`);
+      return response.data?.job || null;
+    } catch {
+      return null;
+    }
+  }, []);
+
   return {
     jobs,
     loading,
@@ -173,6 +192,8 @@ export const useJobs = (initialFilters: JobFilters = {}) => {
     pagination,
     filters,
     updateFilters,
+    setPage,
+    fetchJobById,
     fetchJobs,
     createJob,
     updateJob,
