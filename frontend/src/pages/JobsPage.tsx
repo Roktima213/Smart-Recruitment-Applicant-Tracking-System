@@ -6,13 +6,13 @@ import {
   Briefcase, 
   Building2, 
   ChevronRight, 
-  ChevronLeft,
   SlidersHorizontal,
   X,
   Sparkles
 } from 'lucide-react';
 import { useJobs } from '../hooks/useJobs';
 import { SkeletonCard } from '../components/ui/Skeleton';
+import { Pagination } from '../components/ui/Pagination';
 
 const DEPARTMENTS = [
   'All Departments',
@@ -294,29 +294,12 @@ export const JobsPage: React.FC = () => {
 
       {/* Pagination Controls */}
       {pagination.totalPages > 1 && (
-        <div className="flex items-center justify-center gap-3 pt-6">
-          <button
-            onClick={() => handlePageChange(pagination.page - 1)}
-            disabled={pagination.page <= 1}
-            className="p-2 border border-slate-200 rounded-lg text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition"
-            title="Previous Page"
-          >
-            <ChevronLeft className="w-4 h-4" />
-          </button>
-
-          <span className="text-xs font-medium text-slate-600">
-            Page <span className="font-bold text-slate-900">{pagination.page}</span> of{' '}
-            <span className="font-bold text-slate-900">{pagination.totalPages}</span>
-          </span>
-
-          <button
-            onClick={() => handlePageChange(pagination.page + 1)}
-            disabled={pagination.page >= pagination.totalPages}
-            className="p-2 border border-slate-200 rounded-lg text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition"
-            title="Next Page"
-          >
-            <ChevronRight className="w-4 h-4" />
-          </button>
+        <div className="pt-6">
+          <Pagination
+            currentPage={pagination.page}
+            totalPages={pagination.totalPages}
+            onPageChange={handlePageChange}
+          />
         </div>
       )}
     </div>
