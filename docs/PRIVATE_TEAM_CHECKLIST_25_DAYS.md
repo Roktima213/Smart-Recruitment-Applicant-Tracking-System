@@ -9,7 +9,7 @@
 | Role & Color | Member | Branch | Daily Focus & Domain |
 | :--- | :--- | :--- | :--- |
 | 🛡️ **Leader & DevOps Engineer** | Ranadeep | `devops` & `main` | Git governance, CI/CD gates, Docker compose, test suites, floor seal & release tagging |
-| ☁️ **Cloud Engineer** | Member 2 | `cloud` | Firebase Auth Emulator (port 9099), Custom Claims, PostgreSQL params, private storage, SMTP config |
+| ☁️ **Cloud Engineer** | Roktima | `cloud` | Firebase Auth Emulator (port 9099), Custom Claims, PostgreSQL params, private storage, SMTP config |
 | ⚙️ **Backend Developer** | Member 3 | `backend` | 12-table PostgreSQL DDL, Express TypeScript APIs, RBAC middleware, stage machine, analytics queries |
 | 🎨 **Frontend Developer 1** | Member 4 | `frontend-1` | Visual UI, responsive shells, CSS design tokens, dashboard pages, modal forms, accessibility |
 | ⚡ **Frontend Developer 2** | Member 5 | `frontend-2` | Client Firebase SDK, Axios JWT interceptors, AuthContext, API hooks, state & form validation |
