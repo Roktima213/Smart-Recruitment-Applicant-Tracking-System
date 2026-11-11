@@ -2,6 +2,8 @@ import React from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { ROUTES } from './constants/routes';
 import { AuthProvider } from './context/AuthContext';
+import { ToastProvider } from './context/ToastContext';
+import { NetworkStatusBanner } from './components/common/NetworkStatusBanner';
 import { AppLayout } from './components/layout/AppLayout';
 import { ProtectedRoute } from './components/auth/ProtectedRoute';
 
@@ -21,9 +23,11 @@ import { NotFoundPage } from './pages/NotFoundPage';
 
 export const App: React.FC = () => {
   return (
-    <AuthProvider>
-      <BrowserRouter>
-        <Routes>
+    <ToastProvider>
+      <NetworkStatusBanner />
+      <AuthProvider>
+        <BrowserRouter>
+          <Routes>
           <Route element={<AppLayout />}>
             {/* Public Routes */}
             <Route path={ROUTES.HOME} element={<HomePage />} />
@@ -56,6 +60,7 @@ export const App: React.FC = () => {
         </Routes>
       </BrowserRouter>
     </AuthProvider>
+  </ToastProvider>
   );
 };
 
