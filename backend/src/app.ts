@@ -9,6 +9,7 @@ dotenv.config();
 
 import authRoutes from './routes/authRoutes';
 import adminRoutes from './routes/adminRoutes';
+import jobRoutes from './routes/jobRoutes';
 import { errorHandler } from './middleware/errorHandler';
 
 const app: Application = express();
@@ -97,10 +98,12 @@ app.get('/api/health', async (_req: Request, res: Response) => {
 
 // Authentication and RBAC endpoints
 app.use('/api/auth', authRoutes);
-app.use('/api/admin', adminRoutes);
 
 // Admin Role Management & System Configuration endpoints
 app.use('/api/admin', adminRoutes);
+
+// Job Requisitions & Lifecycle endpoints
+app.use('/api/jobs', jobRoutes);
 
 // 404 Not Found Handler
 app.use((req: Request, res: Response) => {

@@ -1,0 +1,486 @@
+import { Request, Response } from 'express';
+import { z } from 'zod';
+import { pool } from '../config/database';
+
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+export const createJobSchema = z
+  .object({
+    title: z.string().trim().min(3, 'Job title must be at least 3 characters').max(255),
+    description: z.string().trim().min(10, 'Job description must be at least 10 characters'),
+    department: z.string().trim().max(100).optional().default('General'),
+    location: z.string().trim().max(100).optional().default('Remote'),
+    employment_type: z.string().trim().max(50).optional().default('Full-time'),
+    salary_min: z.number().int().nonnegative().optional().nullable(),
+    salary_max: z.number().int().nonnegative().optional().nullable(),
+    status: z.enum(['DRAFT', 'PUBLISHED', 'CLOSED', 'ARCHIVED']).optional().default('DRAFT'),
+    company_id: z.string().regex(UUID_REGEX, 'Invalid company UUID').optional().nullable(),
+  })
+  .refine(
+    (data) => {
+      if (data.salary_min != null && data.salary_max != null) {
+        return data.salary_min <= data.salary_max;
+      }
+      return true;
+    },
+    {
+      message: 'salary_min cannot be greater than salary_max',
+      path: ['salary_min'],
+    }
+  );
+
+export const updateJobSchema = z
+  .object({
+    title: z.string().trim().min(3).max(255).optional(),
+    description: z.string().trim().min(10).optional(),
+    department: z.string().trim().max(100).optional(),
+    location: z.string().trim().max(100).optional(),
+    employment_type: z.string().trim().max(50).optional(),
+    salary_min: z.number().int().nonnegative().optional().nullable(),
+    salary_max: z.number().int().nonnegative().optional().nullable(),
+    status: z.enum(['DRAFT', 'PUBLISHED', 'CLOSED', 'ARCHIVED']).optional(),
+  })
+  .refine(
+    (data) => {
+      if (data.salary_min != null && data.salary_max != null) {
+        return data.salary_min <= data.salary_max;
+      }
+      return true;
+    },
+    {
+      message: 'salary_min cannot be greater than salary_max',
+      path: ['salary_min'],
+    }
+  );
+
+export const updateJobStatusSchema = z.object({
+  status: z.enum(['DRAFT', 'PUBLISHED', 'CLOSED', 'ARCHIVED'], {
+    errorMap: () => ({ message: 'Status must be one of DRAFT, PUBLISHED, CLOSED, or ARCHIVED' }),
+  }),
+});
+
+/**
+ * GET /api/jobs
+ * Paginated list of jobs with filtering by status, department, location, and search keyword.
+ */
+export const listJobs = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const page = Math.max(1, parseInt(req.query.page as string, 10) || 1);
+    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit as string, 10) || 20));
+    const offset = (page - 1) * limit;
+
+    const { status, department, location, q, company_id } = req.query;
+
+    const conditions: string[] = [];
+    const values: unknown[] = [];
+    let paramIndex = 1;
+
+    // Default: non-admin/HR users only see PUBLISHED jobs unless a status filter is explicitly permitted
+    const userRole = (req.user?.role || '').toUpperCase();
+    const isStaff = userRole === 'ADMIN' || userRole === 'HR' || userRole === 'SUPER_ADMIN';
+
+    if (status && typeof status === 'string') {
+      conditions.push(`j.status = $${paramIndex++}`);
+      values.push(status.toUpperCase());
+    } else if (!isStaff) {
+      conditions.push(`j.status = 'PUBLISHED'`);
+    }
+
+    if (department && typeof department === 'string') {
+      conditions.push(`j.department ILIKE $${paramIndex++}`);
+      values.push(`%${department}%`);
+    }
+
+    if (location && typeof location === 'string') {
+      conditions.push(`j.location ILIKE $${paramIndex++}`);
+      values.push(`%${location}%`);
+    }
+
+    if (company_id && typeof company_id === 'string' && UUID_REGEX.test(company_id)) {
+      conditions.push(`j.company_id = $${paramIndex++}`);
+      values.push(company_id);
+    }
+
+    if (q && typeof q === 'string') {
+      conditions.push(`(j.title ILIKE $${paramIndex} OR j.description ILIKE $${paramIndex} OR j.department ILIKE $${paramIndex})`);
+      values.push(`%${q}%`);
+      paramIndex++;
+    }
+
+    const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+
+    const countSql = `SELECT COUNT(*)::int AS total FROM jobs j ${whereClause};`;
+    const countResult = await pool.query(countSql, values);
+    const total = countResult.rows[0]?.total || 0;
+
+    const dataSql = `
+      SELECT 
+        j.id,
+        j.company_id,
+        c.name AS company_name,
+        j.title,
+        j.description,
+        j.department,
+        j.location,
+        j.employment_type,
+        j.salary_min,
+        j.salary_max,
+        j.status,
+        j.published_at,
+        j.closed_at,
+        j.created_by,
+        u.full_name AS creator_name,
+        j.created_at,
+        j.updated_at
+      FROM jobs j
+      LEFT JOIN companies c ON j.company_id = c.id
+      LEFT JOIN users u ON j.created_by = u.id
+      ${whereClause}
+      ORDER BY 
+        CASE WHEN j.status = 'PUBLISHED' THEN 0 ELSE 1 END,
+        j.created_at DESC
+      LIMIT $${paramIndex++} OFFSET $${paramIndex++};
+    `;
+
+    values.push(limit, offset);
+    const dataResult = await pool.query(dataSql, values);
+
+    res.status(200).json({
+      success: true,
+      jobs: dataResult.rows,
+      pagination: {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit) || 1,
+      },
+    });
+  } catch (error: any) {
+    console.error('[Job Controller - List Error]:', error.message);
+    res.status(500).json({
+      success: false,
+      error: { message: 'Failed to retrieve jobs directory', statusCode: 500 },
+    });
+  }
+};
+
+/**
+ * GET /api/jobs/:id
+ * Retrieve a single job by UUID.
+ */
+export const getJobById = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { id } = req.params;
+
+    if (!id || !UUID_REGEX.test(id)) {
+      res.status(400).json({
+        success: false,
+        error: { message: 'Invalid job UUID format', statusCode: 400 },
+      });
+      return;
+    }
+
+    const query = `
+      SELECT 
+        j.id,
+        j.company_id,
+        c.name AS company_name,
+        c.logo_url AS company_logo,
+        j.title,
+        j.description,
+        j.department,
+        j.location,
+        j.employment_type,
+        j.salary_min,
+        j.salary_max,
+        j.status,
+        j.published_at,
+        j.closed_at,
+        j.created_by,
+        u.full_name AS creator_name,
+        j.created_at,
+        j.updated_at
+      FROM jobs j
+      LEFT JOIN companies c ON j.company_id = c.id
+      LEFT JOIN users u ON j.created_by = u.id
+      WHERE j.id = $1;
+    `;
+
+    const result = await pool.query(query, [id]);
+
+    if (result.rows.length === 0) {
+      res.status(404).json({
+        success: false,
+        error: { message: 'Job not found', statusCode: 404 },
+      });
+      return;
+    }
+
+    res.status(200).json({
+      success: true,
+      job: result.rows[0],
+    });
+  } catch (error: any) {
+    console.error('[Job Controller - Get Error]:', error.message);
+    res.status(500).json({
+      success: false,
+      error: { message: 'Failed to retrieve job details', statusCode: 500 },
+    });
+  }
+};
+
+/**
+ * POST /api/jobs
+ * Creates a new job requisition. Enforced for ADMIN and HR roles.
+ */
+export const createJob = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const {
+      title,
+      description,
+      department,
+      location,
+      employment_type,
+      salary_min,
+      salary_max,
+      status,
+      company_id,
+    } = req.body;
+
+    const firebaseUid = req.user?.uid;
+
+    // Resolve creator's PostgreSQL user ID and company_id
+    let creatorId: string | null = null;
+    let targetCompanyId: string | null = company_id || null;
+
+    if (firebaseUid) {
+      const userRes = await pool.query('SELECT id, company_id FROM users WHERE firebase_uid = $1;', [firebaseUid]);
+      if (userRes.rows.length > 0) {
+        creatorId = userRes.rows[0].id;
+        if (!targetCompanyId) {
+          targetCompanyId = userRes.rows[0].company_id;
+        }
+      }
+    }
+
+    // Fallback: If no company assigned, attach to default primary company
+    if (!targetCompanyId) {
+      const compRes = await pool.query('SELECT id FROM companies ORDER BY created_at ASC LIMIT 1;');
+      if (compRes.rows.length > 0) {
+        targetCompanyId = compRes.rows[0].id;
+      } else {
+        // Auto-provision a default company if none exists
+        const newComp = await pool.query(
+          "INSERT INTO companies (name, domain) VALUES ('Smart ATS Enterprise', 'ats.local') RETURNING id;"
+        );
+        targetCompanyId = newComp.rows[0].id;
+      }
+    }
+
+    const isPublished = status === 'PUBLISHED';
+    const publishedAt = isPublished ? new Date() : null;
+
+    const insertSql = `
+      INSERT INTO jobs (
+        company_id,
+        created_by,
+        title,
+        description,
+        department,
+        location,
+        employment_type,
+        salary_min,
+        salary_max,
+        status,
+        published_at,
+        created_at,
+        updated_at
+      )
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, NOW(), NOW())
+      RETURNING *;
+    `;
+
+    const values = [
+      targetCompanyId,
+      creatorId,
+      title,
+      description,
+      department,
+      location,
+      employment_type,
+      salary_min || null,
+      salary_max || null,
+      status,
+      publishedAt,
+    ];
+
+    const result = await pool.query(insertSql, values);
+
+    res.status(201).json({
+      success: true,
+      message: 'Job requisition created successfully',
+      job: result.rows[0],
+    });
+  } catch (error: any) {
+    console.error('[Job Controller - Create Error]:', error.message);
+    res.status(500).json({
+      success: false,
+      error: { message: 'Failed to create job requisition', statusCode: 500 },
+    });
+  }
+};
+
+/**
+ * PUT /api/jobs/:id
+ * Updates an existing job requisition.
+ */
+export const updateJob = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { id } = req.params;
+
+    if (!id || !UUID_REGEX.test(id)) {
+      res.status(400).json({
+        success: false,
+        error: { message: 'Invalid job UUID format', statusCode: 400 },
+      });
+      return;
+    }
+
+    const existingRes = await pool.query('SELECT * FROM jobs WHERE id = $1;', [id]);
+    if (existingRes.rows.length === 0) {
+      res.status(404).json({
+        success: false,
+        error: { message: 'Job not found', statusCode: 404 },
+      });
+      return;
+    }
+
+    const currentJob = existingRes.rows[0];
+    const {
+      title = currentJob.title,
+      description = currentJob.description,
+      department = currentJob.department,
+      location = currentJob.location,
+      employment_type = currentJob.employment_type,
+      salary_min = currentJob.salary_min,
+      salary_max = currentJob.salary_max,
+      status = currentJob.status,
+    } = req.body;
+
+    let publishedAt = currentJob.published_at;
+    let closedAt = currentJob.closed_at;
+
+    if (status === 'PUBLISHED' && currentJob.status !== 'PUBLISHED') {
+      publishedAt = new Date();
+    } else if (status === 'CLOSED' && currentJob.status !== 'CLOSED') {
+      closedAt = new Date();
+    }
+
+    const updateSql = `
+      UPDATE jobs
+      SET
+        title = $1,
+        description = $2,
+        department = $3,
+        location = $4,
+        employment_type = $5,
+        salary_min = $6,
+        salary_max = $7,
+        status = $8,
+        published_at = $9,
+        closed_at = $10,
+        updated_at = NOW()
+      WHERE id = $11
+      RETURNING *;
+    `;
+
+    const result = await pool.query(updateSql, [
+      title,
+      description,
+      department,
+      location,
+      employment_type,
+      salary_min != null ? salary_min : null,
+      salary_max != null ? salary_max : null,
+      status,
+      publishedAt,
+      closedAt,
+      id,
+    ]);
+
+    res.status(200).json({
+      success: true,
+      message: 'Job updated successfully',
+      job: result.rows[0],
+    });
+  } catch (error: any) {
+    console.error('[Job Controller - Update Error]:', error.message);
+    res.status(500).json({
+      success: false,
+      error: { message: 'Failed to update job', statusCode: 500 },
+    });
+  }
+};
+
+/**
+ * PATCH /api/jobs/:id/status
+ * Updates the lifecycle state of a job (DRAFT -> PUBLISHED -> CLOSED -> ARCHIVED).
+ */
+export const updateJobStatus = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { id } = req.params;
+    const { status } = req.body;
+
+    if (!id || !UUID_REGEX.test(id)) {
+      res.status(400).json({
+        success: false,
+        error: { message: 'Invalid job UUID format', statusCode: 400 },
+      });
+      return;
+    }
+
+    const existingRes = await pool.query('SELECT status, published_at FROM jobs WHERE id = $1;', [id]);
+    if (existingRes.rows.length === 0) {
+      res.status(404).json({
+        success: false,
+        error: { message: 'Job not found', statusCode: 404 },
+      });
+      return;
+    }
+
+    const current = existingRes.rows[0];
+    let publishedAt = current.published_at;
+    let closedAt: Date | null = null;
+
+    if (status === 'PUBLISHED' && !publishedAt) {
+      publishedAt = new Date();
+    } else if (status === 'CLOSED') {
+      closedAt = new Date();
+    }
+
+    const updateSql = `
+      UPDATE jobs
+      SET 
+        status = $1,
+        published_at = COALESCE($2, published_at),
+        closed_at = COALESCE($3, closed_at),
+        updated_at = NOW()
+      WHERE id = $4
+      RETURNING *;
+    `;
+
+    const result = await pool.query(updateSql, [status, publishedAt, closedAt, id]);
+
+    res.status(200).json({
+      success: true,
+      message: `Job status updated to ${status}`,
+      job: result.rows[0],
+    });
+  } catch (error: any) {
+    console.error('[Job Controller - Status Update Error]:', error.message);
+    res.status(500).json({
+      success: false,
+      error: { message: 'Failed to update job status', statusCode: 500 },
+    });
+  }
+};
