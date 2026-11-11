@@ -3,6 +3,7 @@ name: Code Quality & Lint Gates
 on:
   push:
     branches: [main, devops, frontend, frontend-1, frontend-2, backend, cloud]
+    tags: ['v*']
   pull_request:
     branches: [main, devops, frontend, backend, cloud]
 
@@ -108,3 +109,13 @@ jobs:
           DB_PASSWORD: postgres
         run: |
           node ./backend/node_modules/ts-node/dist/bin.js --project ./backend/tsconfig.json scripts/migrate.ts
+
+      - name: Run Synthetic Database Seeder
+        env:
+          DB_HOST: localhost
+          DB_PORT: 5432
+          DB_NAME: smart_ats_db
+          DB_USER: postgres
+          DB_PASSWORD: postgres
+        run: |
+          node ./backend/node_modules/ts-node/dist/bin.js --project ./backend/tsconfig.json database/seed/seed.ts
