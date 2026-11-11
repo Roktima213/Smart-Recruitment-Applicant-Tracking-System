@@ -61,15 +61,24 @@ export const updateJobStatusSchema = z.object({
 
 /**
  * GET /api/jobs
- * Paginated list of jobs with filtering by status, department, location, and search keyword.
+ * Paginated list of jobs with filtering by status, department, location, employment type, salary, and search keyword.
+ * Defensive boundary checks clamp pagination parameters safely.
  */
 export const listJobs = async (req: Request, res: Response): Promise<void> => {
   try {
-    const page = Math.max(1, parseInt(req.query.page as string, 10) || 1);
-    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit as string, 10) || 20));
+    // Defensive pagination bounds checking (Fuzz & boundary hardening)
+    let rawPage = parseInt(req.query.page as string, 10);
+    if (isNaN(rawPage) || rawPage < 1) rawPage = 1;
+
+    let rawLimit = parseInt(req.query.limit as string, 10);
+    if (isNaN(rawLimit) || rawLimit < 1) rawLimit = 20;
+    if (rawLimit > 100) rawLimit = 100;
+
+    const page = rawPage;
+    const limit = rawLimit;
     const offset = (page - 1) * limit;
 
-    const { status, department, location, q, company_id } = req.query;
+    const { status, department, location, employment_type, type, q, company_id, min_salary, max_salary } = req.query;
 
     const conditions: string[] = [];
     const values: unknown[] = [];
@@ -79,31 +88,59 @@ export const listJobs = async (req: Request, res: Response): Promise<void> => {
     const userRole = (req.user?.role || '').toUpperCase();
     const isStaff = userRole === 'ADMIN' || userRole === 'HR' || userRole === 'SUPER_ADMIN';
 
-    if (status && typeof status === 'string') {
-      conditions.push(`j.status = $${paramIndex++}`);
-      values.push(status.toUpperCase());
+    if (status && typeof status === 'string' && status.trim()) {
+      const normalizedStatus = status.trim().toUpperCase();
+      if (isStaff || normalizedStatus === 'PUBLISHED') {
+        conditions.push(`j.status = $${paramIndex++}`);
+        values.push(normalizedStatus);
+      } else {
+        conditions.push(`j.status = 'PUBLISHED'`);
+      }
     } else if (!isStaff) {
       conditions.push(`j.status = 'PUBLISHED'`);
     }
 
-    if (department && typeof department === 'string') {
+    if (department && typeof department === 'string' && department.trim()) {
       conditions.push(`j.department ILIKE $${paramIndex++}`);
-      values.push(`%${department}%`);
+      values.push(`%${department.trim()}%`);
     }
 
-    if (location && typeof location === 'string') {
+    if (location && typeof location === 'string' && location.trim()) {
       conditions.push(`j.location ILIKE $${paramIndex++}`);
-      values.push(`%${location}%`);
+      values.push(`%${location.trim()}%`);
     }
 
-    if (company_id && typeof company_id === 'string' && UUID_REGEX.test(company_id)) {
+    const empType = (employment_type || type) as string | undefined;
+    if (empType && typeof empType === 'string' && empType.trim()) {
+      conditions.push(`j.employment_type ILIKE $${paramIndex++}`);
+      values.push(`%${empType.trim()}%`);
+    }
+
+    if (company_id && typeof company_id === 'string' && UUID_REGEX.test(company_id.trim())) {
       conditions.push(`j.company_id = $${paramIndex++}`);
-      values.push(company_id);
+      values.push(company_id.trim());
     }
 
-    if (q && typeof q === 'string') {
-      conditions.push(`(j.title ILIKE $${paramIndex} OR j.description ILIKE $${paramIndex} OR j.department ILIKE $${paramIndex})`);
-      values.push(`%${q}%`);
+    if (min_salary) {
+      const parsedMin = parseInt(min_salary as string, 10);
+      if (!isNaN(parsedMin) && parsedMin >= 0) {
+        conditions.push(`(j.salary_max IS NULL OR j.salary_max >= $${paramIndex++})`);
+        values.push(parsedMin);
+      }
+    }
+
+    if (max_salary) {
+      const parsedMax = parseInt(max_salary as string, 10);
+      if (!isNaN(parsedMax) && parsedMax >= 0) {
+        conditions.push(`(j.salary_min IS NULL OR j.salary_min <= $${paramIndex++})`);
+        values.push(parsedMax);
+      }
+    }
+
+    if (q && typeof q === 'string' && q.trim()) {
+      const sanitizedQ = `%${q.trim()}%`;
+      conditions.push(`(j.title ILIKE $${paramIndex} OR j.description ILIKE $${paramIndex} OR j.department ILIKE $${paramIndex} OR j.location ILIKE $${paramIndex})`);
+      values.push(sanitizedQ);
       paramIndex++;
     }
 
@@ -118,6 +155,7 @@ export const listJobs = async (req: Request, res: Response): Promise<void> => {
         j.id,
         j.company_id,
         c.name AS company_name,
+        c.logo_url AS company_logo,
         j.title,
         j.description,
         j.department,
@@ -138,6 +176,7 @@ export const listJobs = async (req: Request, res: Response): Promise<void> => {
       ${whereClause}
       ORDER BY 
         CASE WHEN j.status = 'PUBLISHED' THEN 0 ELSE 1 END,
+        j.published_at DESC NULLS LAST,
         j.created_at DESC
       LIMIT $${paramIndex++} OFFSET $${paramIndex++};
     `;
@@ -167,6 +206,7 @@ export const listJobs = async (req: Request, res: Response): Promise<void> => {
 /**
  * GET /api/jobs/:id
  * Retrieve a single job by UUID.
+ * Candidate & public visitors can only access PUBLISHED requisitions.
  */
 export const getJobById = async (req: Request, res: Response): Promise<void> => {
   try {
@@ -216,9 +256,22 @@ export const getJobById = async (req: Request, res: Response): Promise<void> => 
       return;
     }
 
+    const job = result.rows[0];
+    const userRole = (req.user?.role || '').toUpperCase();
+    const isStaff = userRole === 'ADMIN' || userRole === 'HR' || userRole === 'SUPER_ADMIN';
+
+    // Gate unreleased non-published drafts from candidates/public
+    if (job.status !== 'PUBLISHED' && !isStaff) {
+      res.status(404).json({
+        success: false,
+        error: { message: 'Job not found', statusCode: 404 },
+      });
+      return;
+    }
+
     res.status(200).json({
       success: true,
-      job: result.rows[0],
+      job,
     });
   } catch (error: any) {
     console.error('[Job Controller - Get Error]:', error.message);
