@@ -61,6 +61,20 @@ export const errorHandler = (
     return;
   }
 
+  // 3. Handle Multer File Upload Errors
+  if (err.name === 'MulterError') {
+    const isLimit = (err as any).code === 'LIMIT_FILE_SIZE';
+    const statusCode = isLimit ? 413 : 400;
+    res.status(statusCode).json({
+      success: false,
+      error: {
+        message: isLimit ? 'File size exceeds maximum allowed limit of 5 MB' : err.message,
+        statusCode,
+      },
+    });
+    return;
+  }
+
   // 3. Handle JSON Body Parser Syntax Errors
   if (err instanceof SyntaxError && 'status' in err && err.status === 400 && 'body' in err) {
     res.status(400).json({

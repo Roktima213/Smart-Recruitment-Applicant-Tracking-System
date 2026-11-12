@@ -197,15 +197,15 @@ Establish Schema / API Contract               Build UI & State using Mock Data (
 ---
 
 #### 🔹 Day 10 (Floor 10): Candidate Profile & Defensive Resume Upload
-* [ ] **Cloud:** `feat(storage): implement private resume storage service and sha256 hashing`
+* [x] **Cloud:** `feat(storage): implement private resume storage service and sha256 hashing`
   * Build `storageService.ts` saving files outside web root with UUID names and SHA-256 hashes.
-* [ ] **Backend:** `feat(resume-api): add candidate profile api and magic-byte resume upload`
+* [x] **Backend:** `feat(resume-api): add candidate profile api and magic-byte resume upload`
   * Implement `GET/PUT /api/candidates/me` and Multer upload checking PDF/DOCX magic bytes.
-* [ ] **Frontend 1:** `feat(candidate-ui): build candidate profile editor and resume upload widget`
+* [x] **Frontend 1:** `feat(candidate-ui): build candidate profile editor and resume upload widget`
   * Build Candidate Dashboard (`/candidate`) profile form and drag-and-drop resume upload zone.
-* [ ] **Frontend 2:** `feat(candidate-ui): wire resume file upload client validation and progress state`
+* [x] **Frontend 2:** `feat(candidate-ui): wire resume file upload client validation and progress state`
   * Add client-side size (< 5 MB) and MIME checks, upload progress bar, and profile update hook.
-* [ ] **Leader / DevOps:** `test(security): add malicious file upload and size limit rejection tests`
+* [x] **Leader / DevOps:** `test(security): add malicious file upload and size limit rejection tests`
   * Add tests verifying `.exe`/`.html` renamed to `.pdf` or files > 5 MB return 400/413 errors.
 * **Daily Done Criteria:** Candidate can update profile and upload PDF resume; non-PDF and oversized files rejected.
 
