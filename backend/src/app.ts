@@ -11,6 +11,7 @@ import authRoutes from './routes/authRoutes';
 import adminRoutes from './routes/adminRoutes';
 import jobRoutes from './routes/jobRoutes';
 import candidateRoutes from './routes/candidateRoutes';
+import applicationRoutes from './routes/applicationRoutes';
 import { errorHandler } from './middleware/errorHandler';
 
 const app: Application = express();
@@ -108,6 +109,9 @@ app.use('/api/jobs', jobRoutes);
 
 // Candidate Profile & Resume Management endpoints
 app.use('/api/candidates', candidateRoutes);
+
+// Job Application Submission & Candidate History endpoints
+app.use('/api/applications', applicationRoutes);
 
 // 404 Not Found Handler
 app.use((req: Request, res: Response) => {

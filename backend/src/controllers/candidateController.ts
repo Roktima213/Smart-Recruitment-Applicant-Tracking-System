@@ -76,7 +76,7 @@ const updateProfileSchema = z.object({
 /**
  * Helper to get or bootstrap candidate user and profile from authenticated session
  */
-async function getOrCreateCandidateProfile(firebaseUid: string) {
+export async function getOrCreateCandidateProfile(firebaseUid: string) {
   // 1. Fetch user from PostgreSQL
   const userSql = `
     SELECT id, firebase_uid, email, full_name, role, phone, avatar_url, is_active
