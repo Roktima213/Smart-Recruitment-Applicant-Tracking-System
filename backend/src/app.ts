@@ -106,7 +106,7 @@ app.use('/api/admin', adminRoutes);
 // Job Requisitions & Lifecycle endpoints
 app.use('/api/jobs', jobRoutes);
 
-// Candidate Profile & Defensive Resume endpoints
+// Candidate Profile & Resume Management endpoints
 app.use('/api/candidates', candidateRoutes);
 
 // 404 Not Found Handler
