@@ -114,7 +114,7 @@ app.use('/api/candidates', candidateRoutes);
 // Private Resume Streaming & Download endpoints
 app.use('/api/resumes', resumeRoutes);
 
-// Job Applications & Candidate Submissions endpoints
+// Job Application Submission & Candidate History endpoints
 app.use('/api/applications', applicationRoutes);
 
 // 404 Not Found Handler
