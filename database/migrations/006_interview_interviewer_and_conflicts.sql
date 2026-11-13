@@ -20,6 +20,20 @@ CREATE INDEX IF NOT EXISTS idx_interview_events_interviewer_conflict
 ON interview_events (interviewer_id, scheduled_start, scheduled_end)
 WHERE status != 'CANCELLED';
 
--- 3. Refresh compatibility view interviews
-DROP VIEW IF EXISTS interviews;
-CREATE VIEW interviews AS SELECT * FROM interview_events;
+-- 3. Refresh compatibility view without dropping it
+CREATE OR REPLACE VIEW interviews AS
+SELECT
+    id,
+    application_id,
+    title,
+    description,
+    scheduled_start,
+    scheduled_end,
+    location_or_link,
+    status,
+    reschedule_count,
+    created_by,
+    created_at,
+    updated_at,
+    interviewer_id
+FROM interview_events;
