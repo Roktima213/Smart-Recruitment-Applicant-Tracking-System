@@ -4,12 +4,15 @@ import {
   Briefcase,
   Loader2,
   RefreshCw,
+  Filter,
 } from 'lucide-react';
 import {
   ApplicationStage,
   PipelineApplication,
   PipelineKanbanBoard,
   StageTransitionModal,
+  CandidateDossierDrawer,
+  PIPELINE_COLUMNS,
 } from '../../components/pipeline';
 import { usePipeline } from '../../hooks/usePipeline';
 import { useToast } from '../../context/ToastContext';
@@ -19,12 +22,19 @@ export const HrPipelinePage: React.FC = () => {
     applications,
     loading,
     updatingAppId,
+    isDownloadingResume,
+    selectedDossierApp,
+    isDossierOpen,
     fetchPipeline,
+    openDossier,
+    closeDossier,
+    downloadResume,
     transitionStage,
   } = usePipeline();
   const toast = useToast();
 
   const [selectedJobFilter, setSelectedJobFilter] = useState<string>('ALL');
+  const [selectedStageFilter, setSelectedStageFilter] = useState<string>('ALL');
   const [searchQuery, setSearchQuery] = useState<string>('');
 
   // Transition Modal State
@@ -33,9 +43,12 @@ export const HrPipelinePage: React.FC = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Filtered applications
+  // Multi-filtered applications
   const filteredApplications = applications.filter((app) => {
     if (selectedJobFilter !== 'ALL' && app.jobId !== selectedJobFilter) {
+      return false;
+    }
+    if (selectedStageFilter !== 'ALL' && app.currentStage !== selectedStageFilter) {
       return false;
     }
     if (searchQuery.trim()) {
@@ -43,7 +56,8 @@ export const HrPipelinePage: React.FC = () => {
       const matchName = app.candidate.name.toLowerCase().includes(q);
       const matchRole = (app.candidate.headline || '').toLowerCase().includes(q);
       const matchJob = app.job.title.toLowerCase().includes(q);
-      return matchName || matchRole || matchJob;
+      const matchSkill = (app.candidate.skills || []).some((s) => s.toLowerCase().includes(q));
+      return matchName || matchRole || matchJob || matchSkill;
     }
     return true;
   });
@@ -84,11 +98,11 @@ export const HrPipelinePage: React.FC = () => {
           <div className="flex items-center gap-2">
             <h1 className="text-2xl font-bold text-slate-900">Recruitment Pipeline Board</h1>
             <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-brand-50 text-brand-700 border border-brand-200">
-              Interactive Kanban
+              Interactive Kanban & Dossier
             </span>
           </div>
           <p className="text-sm text-slate-500 mt-0.5">
-            Stage transitions enforce row-locking concurrency and immutable audit logging.
+            Real-time candidate search, row-locking concurrency, and full dossier timeline view.
           </p>
         </div>
 
@@ -111,8 +125,8 @@ export const HrPipelinePage: React.FC = () => {
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search candidate..."
-              className="pl-8 pr-3 py-1.5 text-xs bg-white border border-slate-300 rounded-lg shadow-2xs focus:outline-hidden focus:ring-2 focus:ring-brand-200 w-44"
+              placeholder="Search name, skill, title..."
+              className="pl-8 pr-3 py-1.5 text-xs bg-white border border-slate-300 rounded-lg shadow-2xs focus:outline-hidden focus:ring-2 focus:ring-brand-200 w-52"
             />
           </div>
 
@@ -135,6 +149,46 @@ export const HrPipelinePage: React.FC = () => {
         </div>
       </div>
 
+      {/* Stage Filter Quick Pills */}
+      <div className="flex items-center gap-2 overflow-x-auto pb-1 text-xs">
+        <span className="text-slate-400 flex items-center gap-1 text-[11px] font-semibold uppercase tracking-wider shrink-0">
+          <Filter className="w-3 h-3" />
+          <span>Stage:</span>
+        </span>
+        <button
+          type="button"
+          onClick={() => setSelectedStageFilter('ALL')}
+          className={`px-3 py-1 rounded-lg font-semibold transition shrink-0 ${
+            selectedStageFilter === 'ALL'
+              ? 'bg-slate-900 text-white shadow-xs'
+              : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'
+          }`}
+        >
+          All Stages ({applications.length})
+        </button>
+        {PIPELINE_COLUMNS.map((col) => {
+          const count = applications.filter((a) => a.currentStage === col.id).length;
+          const isSelected = selectedStageFilter === col.id;
+          return (
+            <button
+              key={col.id}
+              type="button"
+              onClick={() => setSelectedStageFilter(col.id)}
+              className={`px-3 py-1 rounded-lg font-semibold transition shrink-0 flex items-center gap-1.5 ${
+                isSelected
+                  ? 'bg-slate-900 text-white shadow-xs'
+                  : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'
+              }`}
+            >
+              <span>{col.name}</span>
+              <span className={`px-1.5 py-0.2 rounded-full text-[10px] ${isSelected ? 'bg-slate-700 text-white' : 'bg-slate-100 text-slate-600'}`}>
+                {count}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+
       {/* Loading Skeleton or Kanban Board */}
       {loading && applications.length === 0 ? (
         <div className="h-96 flex flex-col items-center justify-center bg-slate-50 rounded-2xl border border-slate-200">
@@ -145,6 +199,7 @@ export const HrPipelinePage: React.FC = () => {
         <PipelineKanbanBoard
           applications={filteredApplications}
           onRequestTransition={handleOpenTransitionModal}
+          onViewDetails={(app) => openDossier(app)}
           updatingAppId={updatingAppId}
           onIllegalDropAttempt={(msg) => toast.error(msg)}
         />
@@ -166,6 +221,23 @@ export const HrPipelinePage: React.FC = () => {
           isSubmitting={isSubmitting}
         />
       )}
+
+      {/* Candidate Dossier Slide-Over Drawer */}
+      <CandidateDossierDrawer
+        isOpen={isDossierOpen}
+        onClose={closeDossier}
+        application={selectedDossierApp}
+        onAdvanceClick={(app) => {
+          closeDossier();
+          handleOpenTransitionModal(app);
+        }}
+        onRejectClick={(app) => {
+          closeDossier();
+          handleOpenTransitionModal(app, 'REJECTED');
+        }}
+        onDownloadResume={downloadResume}
+        isDownloadingResume={isDownloadingResume}
+      />
     </div>
   );
 };
