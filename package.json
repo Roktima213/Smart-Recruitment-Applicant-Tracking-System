@@ -1,0 +1,15 @@
+{
+  "name": "smart-recruitment-applicant-tracking-system",
+  "version": "0.2.0-week2",
+  "private": true,
+  "description": "Smart Recruitment & Applicant Tracking System (ATS)",
+  "scripts": {
+    "test": "npm --prefix backend test && npm --prefix frontend run build",
+    "test:backend": "npm --prefix backend test",
+    "test:e2e": "node node_modules/@playwright/test/cli.js test",
+    "build:frontend": "npm --prefix frontend run build"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.44.0"
+  }
+}

@@ -257,15 +257,15 @@ Establish Schema / API Contract               Build UI & State using Mock Data (
 ---
 
 #### 🔹 Day 14 (Floor 14): Week 2 Milestone Verification & Pipeline Stress Testing
-* [ ] **Cloud:** `feat(seed): expand seed script with multi-stage applications and pdf resumes`
+* [x] **Cloud:** `feat(seed): expand seed script with multi-stage applications and pdf resumes`
   * Expand `seed.ts` with 15 realistic candidates across all stages with mock PDF resumes in `uploads/`.
-* [ ] **Backend:** `docs(pipeline): document formal application and job status transition rules`
+* [x] **Backend:** `docs(pipeline): document formal application and job status transition rules`
   * Publish `docs/status-transitions.md` defining valid state transitions and error codes.
-* [ ] **Frontend 1:** `fix(ui): polish empty states pagination and accessibility on pipeline views`
+* [x] **Frontend 1:** `fix(ui): polish empty states pagination and accessibility on pipeline views`
   * Polish empty pipeline columns, keyboard navigation, and ARIA labels.
-* [ ] **Frontend 2:** `fix(ui): add optimistic UI error rollback and stage action feedback`
+* [x] **Frontend 2:** `fix(ui): add optimistic UI error rollback and stage action feedback`
   * Add rollback on network failure when moving candidate cards.
-* [ ] **Leader / DevOps:** `ci(release): verify week 2 api and e2e test gates and tag v0.2.0-week2`
+* [x] **Leader / DevOps:** `ci(release): verify week 2 api and e2e test gates and tag v0.2.0-week2`
   * Execute full test suite (API + Playwright E2E) and tag release `v0.2.0-week2`.
 * **Daily Done Criteria:** E2E test passes headless; tag `v0.2.0-week2` pushed to GitHub.
 
