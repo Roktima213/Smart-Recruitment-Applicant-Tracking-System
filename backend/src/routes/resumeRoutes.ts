@@ -141,8 +141,10 @@ router.get('/:id/download', async (req: Request, res: Response): Promise<void> =
       return;
     }
 
-    // Defense-in-depth headers
+    // Defense-in-depth security headers (nosniff, Content-Disposition, private cache)
     res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('Content-Disposition', `attachment; filename="${path.basename(resume.file_name)}"`);
+    res.setHeader('Content-Type', resume.mime_type || 'application/pdf');
     res.setHeader('Cache-Control', 'private, no-cache, no-store, must-revalidate');
     if (resume.sha256_hash) {
       res.setHeader('ETag', `"${resume.sha256_hash}"`);
