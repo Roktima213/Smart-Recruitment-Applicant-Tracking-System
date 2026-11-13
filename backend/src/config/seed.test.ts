@@ -19,7 +19,7 @@ jest.mock('./database', () => ({
   },
 }));
 
-import { DEMO_COMPANY, DEMO_USERS, DEMO_JOB } from '../../../database/seed/seed';
+import { DEMO_COMPANY, DEMO_USERS, DEMO_JOB, SEED_CANDIDATES } from '../../../database/seed/seed';
 
 describe('Synthetic Seed Configuration & Entities', () => {
   it('should define valid demo company with UUID and settings', () => {
@@ -48,5 +48,24 @@ describe('Synthetic Seed Configuration & Entities', () => {
     expect(DEMO_JOB.companyId).toBe(DEMO_COMPANY.id);
     expect(DEMO_JOB.salaryMax).toBeGreaterThanOrEqual(DEMO_JOB.salaryMin);
     expect(DEMO_JOB.status).toBe('PUBLISHED');
+  });
+
+  it('should define expanded realistic candidate seed dataset with 20+ applications across all 6 stages', () => {
+    expect(SEED_CANDIDATES.length).toBeGreaterThanOrEqual(20);
+
+    const stages = new Set(SEED_CANDIDATES.map((c) => c.stage));
+    expect(stages.has('APPLIED')).toBe(true);
+    expect(stages.has('SCREENING')).toBe(true);
+    expect(stages.has('INTERVIEW')).toBe(true);
+    expect(stages.has('SELECTED')).toBe(true);
+    expect(stages.has('OFFERED')).toBe(true);
+    expect(stages.has('REJECTED')).toBe(true);
+
+    for (const candidate of SEED_CANDIDATES) {
+      expect(candidate.email).toMatch(/@example\.com$/);
+      expect(candidate.skills.length).toBeGreaterThanOrEqual(3);
+      expect(candidate.resumeFileName.endsWith('.pdf')).toBe(true);
+      expect(candidate.experienceYears).toBeGreaterThan(0);
+    }
   });
 });
