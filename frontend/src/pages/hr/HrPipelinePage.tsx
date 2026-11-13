@@ -2,8 +2,8 @@ import React, { useState } from 'react';
 import {
   Search,
   Briefcase,
-  CheckCircle2,
-  AlertCircle,
+  Loader2,
+  RefreshCw,
 } from 'lucide-react';
 import {
   ApplicationStage,
@@ -11,165 +11,21 @@ import {
   PipelineKanbanBoard,
   StageTransitionModal,
 } from '../../components/pipeline';
-
-const SEED_APPLICATIONS: PipelineApplication[] = [
-  {
-    id: 'app-seed-01',
-    jobId: 'job-seed-01',
-    candidateId: 'cand-01',
-    resumeId: 'resume-01',
-    currentStage: 'APPLIED',
-    appliedAt: '2026-11-12T08:30:00Z',
-    updatedAt: '2026-11-12T08:30:00Z',
-    matchScore: 92,
-    candidate: {
-      id: 'cand-01',
-      name: 'Alex Morgan',
-      email: 'alex.morgan@example.com',
-      headline: 'Senior Full Stack Engineer',
-      skills: ['React', 'TypeScript', 'Node.js', 'PostgreSQL'],
-    },
-    job: {
-      id: 'job-seed-01',
-      title: 'Senior Full Stack Engineer',
-      department: 'Engineering',
-      location: 'Remote',
-      companyName: 'TechCorp Solutions',
-    },
-    resumeFileName: 'Alex_Morgan_Resume.pdf',
-  },
-  {
-    id: 'app-seed-02',
-    jobId: 'job-seed-02',
-    candidateId: 'cand-02',
-    resumeId: 'resume-02',
-    currentStage: 'APPLIED',
-    appliedAt: '2026-11-12T11:45:00Z',
-    updatedAt: '2026-11-12T11:45:00Z',
-    matchScore: 88,
-    candidate: {
-      id: 'cand-02',
-      name: 'Samira Khan',
-      email: 'samira.khan@example.com',
-      headline: 'DevOps & Cloud Architect',
-      skills: ['Kubernetes', 'AWS', 'Terraform', 'Docker'],
-    },
-    job: {
-      id: 'job-seed-02',
-      title: 'DevOps Architect',
-      department: 'Infrastructure',
-      location: 'New York, NY',
-      companyName: 'TechCorp Solutions',
-    },
-    resumeFileName: 'Samira_Cloud_CV.pdf',
-  },
-  {
-    id: 'app-seed-03',
-    jobId: 'job-seed-01',
-    candidateId: 'cand-03',
-    resumeId: 'resume-03',
-    currentStage: 'SCREENING',
-    appliedAt: '2026-11-11T14:15:00Z',
-    updatedAt: '2026-11-12T10:00:00Z',
-    matchScore: 85,
-    candidate: {
-      id: 'cand-03',
-      name: 'David Lee',
-      email: 'david.lee@example.com',
-      headline: 'Frontend React Specialist',
-      skills: ['TypeScript', 'Next.js', 'Tailwind CSS'],
-    },
-    job: {
-      id: 'job-seed-01',
-      title: 'Senior Full Stack Engineer',
-      department: 'Engineering',
-      location: 'Remote',
-      companyName: 'TechCorp Solutions',
-    },
-    resumeFileName: 'David_Lee_Frontend.pdf',
-  },
-  {
-    id: 'app-seed-04',
-    jobId: 'job-seed-03',
-    candidateId: 'cand-04',
-    resumeId: 'resume-04',
-    currentStage: 'INTERVIEW',
-    appliedAt: '2026-11-10T09:20:00Z',
-    updatedAt: '2026-11-12T16:00:00Z',
-    matchScore: 96,
-    candidate: {
-      id: 'cand-04',
-      name: 'Elena Rostova',
-      email: 'elena.rostova@example.com',
-      headline: 'Principal Product Designer',
-      skills: ['Figma', 'Design Systems', 'User Research'],
-    },
-    job: {
-      id: 'job-seed-03',
-      title: 'Principal Product Designer',
-      department: 'Design',
-      location: 'San Francisco, CA',
-      companyName: 'TechCorp Solutions',
-    },
-    resumeFileName: 'Elena_Design_Portfolio.pdf',
-  },
-  {
-    id: 'app-seed-05',
-    jobId: 'job-seed-02',
-    candidateId: 'cand-05',
-    resumeId: 'resume-05',
-    currentStage: 'SELECTED',
-    appliedAt: '2026-11-09T13:00:00Z',
-    updatedAt: '2026-11-12T18:00:00Z',
-    matchScore: 91,
-    candidate: {
-      id: 'cand-05',
-      name: 'Carlos Mendez',
-      email: 'carlos.mendez@example.com',
-      headline: 'Senior Cloud Reliability Engineer',
-      skills: ['GCP', 'PostgreSQL', 'Python', 'Go'],
-    },
-    job: {
-      id: 'job-seed-02',
-      title: 'DevOps Architect',
-      department: 'Infrastructure',
-      location: 'New York, NY',
-      companyName: 'TechCorp Solutions',
-    },
-    resumeFileName: 'Carlos_Mendez_SRE.pdf',
-  },
-  {
-    id: 'app-seed-06',
-    jobId: 'job-seed-01',
-    candidateId: 'cand-06',
-    resumeId: 'resume-06',
-    currentStage: 'OFFERED',
-    appliedAt: '2026-11-08T10:30:00Z',
-    updatedAt: '2026-11-13T09:00:00Z',
-    matchScore: 94,
-    candidate: {
-      id: 'cand-06',
-      name: 'Zack Taylor',
-      email: 'zack.taylor@example.com',
-      headline: 'Lead Software Architect',
-      skills: ['Microservices', 'Node.js', 'Distributed Systems'],
-    },
-    job: {
-      id: 'job-seed-01',
-      title: 'Senior Full Stack Engineer',
-      department: 'Engineering',
-      location: 'Remote',
-      companyName: 'TechCorp Solutions',
-    },
-    resumeFileName: 'Zack_Taylor_Architect.pdf',
-  },
-];
+import { usePipeline } from '../../hooks/usePipeline';
+import { useToast } from '../../context/ToastContext';
 
 export const HrPipelinePage: React.FC = () => {
-  const [applications, setApplications] = useState<PipelineApplication[]>(SEED_APPLICATIONS);
+  const {
+    applications,
+    loading,
+    updatingAppId,
+    fetchPipeline,
+    transitionStage,
+  } = usePipeline();
+  const toast = useToast();
+
   const [selectedJobFilter, setSelectedJobFilter] = useState<string>('ALL');
   const [searchQuery, setSearchQuery] = useState<string>('');
-  const [toastMessage, setToastMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
 
   // Transition Modal State
   const [modalApp, setModalApp] = useState<PipelineApplication | null>(null);
@@ -196,11 +52,6 @@ export const HrPipelinePage: React.FC = () => {
     new Map(applications.map((app) => [app.job.id, app.job])).values()
   );
 
-  const showToast = (text: string, type: 'success' | 'error' = 'success') => {
-    setToastMessage({ text, type });
-    setTimeout(() => setToastMessage(null), 4000);
-  };
-
   const handleOpenTransitionModal = (
     application: PipelineApplication,
     targetStage?: ApplicationStage
@@ -215,38 +66,11 @@ export const HrPipelinePage: React.FC = () => {
 
     setIsSubmitting(true);
     try {
-      // Optimistically update local state or invoke API
-      setApplications((prev) =>
-        prev.map((app) =>
-          app.id === modalApp.id
-            ? {
-                ...app,
-                currentStage: targetStage,
-                updatedAt: new Date().toISOString(),
-                stageHistory: [
-                  ...(app.stageHistory || []),
-                  {
-                    id: `hist-${Date.now()}`,
-                    fromStage: app.currentStage,
-                    toStage: targetStage,
-                    changedBy: 'Current HR User',
-                    reason,
-                    changedAt: new Date().toISOString(),
-                  },
-                ],
-              }
-            : app
-        )
-      );
-
-      showToast(
-        `Candidate ${modalApp.candidate.name} successfully moved to ${targetStage}!`,
-        'success'
-      );
-      setIsModalOpen(false);
-      setModalApp(null);
-    } catch (err: any) {
-      showToast(err.message || 'Failed to update candidate stage', 'error');
+      const success = await transitionStage(modalApp.id, targetStage, reason);
+      if (success) {
+        setIsModalOpen(false);
+        setModalApp(null);
+      }
     } finally {
       setIsSubmitting(false);
     }
@@ -254,24 +78,6 @@ export const HrPipelinePage: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      {/* Toast Alert Notification */}
-      {toastMessage && (
-        <div
-          className={`fixed top-4 right-4 z-50 flex items-center gap-2 px-4 py-3 rounded-xl shadow-lg border text-xs font-semibold animate-in slide-in-from-top-2 ${
-            toastMessage.type === 'success'
-              ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
-              : 'bg-rose-50 border-rose-200 text-rose-800'
-          }`}
-        >
-          {toastMessage.type === 'success' ? (
-            <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-          ) : (
-            <AlertCircle className="w-4 h-4 text-rose-600" />
-          )}
-          <span>{toastMessage.text}</span>
-        </div>
-      )}
-
       {/* Page Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
@@ -288,6 +94,16 @@ export const HrPipelinePage: React.FC = () => {
 
         {/* Filter Controls */}
         <div className="flex flex-wrap items-center gap-2.5">
+          {/* Refresh Button */}
+          <button
+            onClick={() => fetchPipeline()}
+            disabled={loading}
+            className="p-2 text-slate-600 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 shadow-2xs transition"
+            title="Refresh Pipeline"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
+          </button>
+
           {/* Search Box */}
           <div className="relative">
             <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
@@ -319,12 +135,20 @@ export const HrPipelinePage: React.FC = () => {
         </div>
       </div>
 
-      {/* Kanban Board */}
-      <PipelineKanbanBoard
-        applications={filteredApplications}
-        onRequestTransition={handleOpenTransitionModal}
-        onIllegalDropAttempt={(msg) => showToast(msg, 'error')}
-      />
+      {/* Loading Skeleton or Kanban Board */}
+      {loading && applications.length === 0 ? (
+        <div className="h-96 flex flex-col items-center justify-center bg-slate-50 rounded-2xl border border-slate-200">
+          <Loader2 className="w-8 h-8 text-brand-600 animate-spin mb-2" />
+          <p className="text-xs font-semibold text-slate-600">Loading pipeline board...</p>
+        </div>
+      ) : (
+        <PipelineKanbanBoard
+          applications={filteredApplications}
+          onRequestTransition={handleOpenTransitionModal}
+          updatingAppId={updatingAppId}
+          onIllegalDropAttempt={(msg) => toast.error(msg)}
+        />
+      )}
 
       {/* Transition Modal */}
       {modalApp && (
