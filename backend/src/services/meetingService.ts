@@ -1,3 +1,14 @@
+/**
+ * Smart ATS - Meeting & Scheduling Service (Floor 15 Deliverable)
+ * Cloud Engineer: Roktima
+ *
+ * Responsibilities:
+ * 1. Normalize interview scheduling timestamps from any client timezone offset into standardized UTC.
+ * 2. Validate interview scheduling time slot boundaries (scheduled_end > scheduled_start).
+ * 3. Provide interval intersection detection (isTimeOverlapping) for interviewer collision avoidance.
+ * 4. Generate virtual meeting join URLs across Google Meet, Zoom, Cisco Webex, and physical rooms.
+ */
+
 import crypto from 'crypto';
 
 export type MeetingPlatform = 'GOOGLE_MEET' | 'ZOOM' | 'WEBEX' | 'CUSTOM' | 'IN_PERSON';
