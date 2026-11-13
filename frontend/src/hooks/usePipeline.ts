@@ -274,6 +274,12 @@ export const usePipeline = () => {
       toStage: ApplicationStage,
       reason: string
     ): Promise<boolean> => {
+      // 0. Check network availability
+      if (typeof navigator !== 'undefined' && !navigator.onLine) {
+        toast.error('Network unavailable. Cannot update candidate stage while offline.');
+        return false;
+      }
+
       const targetApp = applications.find((a) => a.id === applicationId);
       if (!targetApp) {
         toast.error('Application not found in current pipeline board');
@@ -298,9 +304,19 @@ export const usePipeline = () => {
 
       // 1. Snapshot previous state for optimistic rollback
       const previousApplications = [...applications];
+      const previousSelectedDossierApp = selectedDossierApp;
       setUpdatingAppId(applicationId);
 
-      // 2. Apply optimistic local update
+      const optimisticHistoryEntry = {
+        id: `temp-${Date.now()}`,
+        fromStage,
+        toStage,
+        changedBy: 'Current User',
+        reason: trimmedReason,
+        changedAt: new Date().toISOString(),
+      };
+
+      // 2. Apply optimistic local update to board applications
       setApplications((prev) =>
         prev.map((app) =>
           app.id === applicationId
@@ -310,19 +326,25 @@ export const usePipeline = () => {
                 updatedAt: new Date().toISOString(),
                 stageHistory: [
                   ...(app.stageHistory || []),
-                  {
-                    id: `temp-${Date.now()}`,
-                    fromStage,
-                    toStage,
-                    changedBy: 'Current User',
-                    reason: trimmedReason,
-                    changedAt: new Date().toISOString(),
-                  },
+                  optimisticHistoryEntry,
                 ],
               }
             : app
         )
       );
+
+      // Synchronize dossier drawer state if this candidate is currently being viewed
+      if (selectedDossierApp && selectedDossierApp.id === applicationId) {
+        setSelectedDossierApp({
+          ...selectedDossierApp,
+          currentStage: toStage,
+          updatedAt: new Date().toISOString(),
+          stageHistory: [
+            ...(selectedDossierApp.stageHistory || []),
+            optimisticHistoryEntry,
+          ],
+        });
+      }
 
       // 3. Dispatch PATCH request to backend
       try {
@@ -333,16 +355,15 @@ export const usePipeline = () => {
 
         if (response.data?.success) {
           toast.success(
-            `Successfully moved ${targetApp.candidate.name} to ${toStage}`
+            `Stage updated: ${targetApp.candidate.name} is now in ${toStage}`
           );
           return true;
         } else {
           throw new Error(response.data?.error?.message || 'Transition rejected by server');
         }
       } catch (err: any) {
-        // If server call fails (e.g. simulated demo ID or network error), check if it's a seed app
+        // If server call fails (e.g. simulated demo ID in tests or mock offline), check if it's a seed app
         if (applicationId.startsWith('app-seed-')) {
-          // Allow demo seed transition locally with confirmation
           toast.success(
             `Updated ${targetApp.candidate.name} to ${toStage} (Demo Pipeline)`
           );
@@ -351,17 +372,23 @@ export const usePipeline = () => {
 
         // Real application: rollback optimistic state on failure
         setApplications(previousApplications);
-        const errorMsg =
-          err.response?.data?.error?.message ||
-          err.message ||
-          'Failed to record stage transition on server';
-        toast.error(errorMsg);
+        if (previousSelectedDossierApp && previousSelectedDossierApp.id === applicationId) {
+          setSelectedDossierApp(previousSelectedDossierApp);
+        }
+
+        const serverError = err.response?.data?.error?.message;
+        const fallbackError = err.message || 'Network error encountered';
+        const displayMessage = serverError
+          ? `Server rejected transition: ${serverError}. Changes rolled back.`
+          : `Stage transition failed: ${fallbackError}. Reverted to ${fromStage}.`;
+
+        toast.error(displayMessage);
         return false;
       } finally {
         setUpdatingAppId(null);
       }
     },
-    [applications, toast]
+    [applications, selectedDossierApp, toast]
   );
 
   return {
