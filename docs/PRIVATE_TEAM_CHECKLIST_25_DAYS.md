@@ -212,15 +212,15 @@ Establish Schema / API Contract               Build UI & State using Mock Data (
 ---
 
 #### 🔹 Day 11 (Floor 11): Job Application Submission & Private Resume Streaming
-* [ ] **Cloud:** `feat(storage): add ownership-verified private resume download stream`
+* [x] **Cloud:** `feat(storage): add ownership-verified private resume download stream`
   * Build `GET /api/resumes/:id/download` verifying ADMIN/HR role or candidate ownership.
-* [ ] **Backend:** `feat(apps-api): implement application submission and candidate history api`
+* [x] **Backend:** `feat(apps-api): implement application submission and candidate history api`
   * Implement `POST /api/applications` (atomic insert + APPLIED stage log) and `GET /api/applications/me`.
-* [ ] **Frontend 1:** `feat(apps-ui): build job application form modal and candidate status tracker`
+* [x] **Frontend 1:** `feat(apps-ui): build job application form modal and candidate status tracker`
   * Build Application Submission Modal on `/jobs/:id` and Application Tracker cards on `/candidate`.
-* [ ] **Frontend 2:** `feat(apps-ui): wire application submission hooks and resume download client`
+* [x] **Frontend 2:** `feat(apps-ui): wire application submission hooks and resume download client`
   * Connect submit application mutation and download resume link with auth headers.
-* [ ] **Leader / DevOps:** `test(apps): add idor resume download and duplicate application tests`
+* [x] **Leader / DevOps:** `test(apps): add idor resume download and duplicate application tests`
   * Add IDOR tests verifying Candidate A cannot download Candidate B's resume (403).
 * **Daily Done Criteria:** Candidate applies to a job; application displays in candidate tracker; duplicate application returns 409.
 
