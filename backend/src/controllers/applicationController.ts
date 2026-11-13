@@ -2,6 +2,8 @@ import { Request, Response } from 'express';
 import { z } from 'zod';
 import { query, getClient } from '../config/database';
 import { getOrCreateCandidateProfile } from './candidateController';
+import { validateStageTransition } from '../services/stageMachine';
+import { executeStageTransitionWithLock } from '../services/stageTransitionDbService';
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -448,5 +450,142 @@ export async function getApplicationById(req: Request, res: Response): Promise<v
     });
   }
 }
+
+/**
+ * Zod validation schema for updating application pipeline stage
+ */
+export const updateApplicationStageSchema = z
+  .object({
+    to_stage: z.string().trim().optional(),
+    toStage: z.string().trim().optional(),
+    stage: z.string().trim().optional(),
+    reason: z.string().trim().min(3, 'A transition reason of at least 3 characters is required for audit trail tracking.'),
+  })
+  .refine((data) => Boolean(data.to_stage || data.toStage || data.stage), {
+    message: 'Target stage is required (to_stage, toStage, or stage)',
+    path: ['to_stage'],
+  });
+
+/**
+ * 4. PATCH /api/applications/:id/stage
+ * Advances or transitions candidate application stage with state machine validation,
+ * row-level lock concurrency protection, and immutable audit logging.
+ */
+export async function updateApplicationStage(req: Request, res: Response): Promise<void> {
+  try {
+    const firebaseUid = req.user?.uid;
+    const userRole = req.user?.role;
+    if (!firebaseUid) {
+      res.status(401).json({
+        error: 'Unauthorized',
+        message: 'Authentication required prior to updating stage',
+      });
+      return;
+    }
+
+    if (userRole !== 'ADMIN' && userRole !== 'HR') {
+      res.status(403).json({
+        success: false,
+        error: {
+          message: 'Forbidden: Only HR or ADMIN users can perform pipeline stage transitions',
+          statusCode: 403,
+        },
+      });
+      return;
+    }
+
+    const { id } = req.params;
+    if (!id || !UUID_REGEX.test(id)) {
+      res.status(400).json({
+        success: false,
+        error: { message: 'Invalid application UUID format', statusCode: 400 },
+      });
+      return;
+    }
+
+    const toStage = (req.body.to_stage || req.body.toStage || req.body.stage || '').toUpperCase();
+    const reason = (req.body.reason || '').trim();
+
+    // Fetch actor's user database record
+    const userRes = await query(
+      `SELECT id, company_id, role, is_active FROM users WHERE firebase_uid = $1 LIMIT 1;`,
+      [firebaseUid]
+    );
+
+    if (userRes.rows.length === 0) {
+      res.status(404).json({
+        success: false,
+        error: { message: 'Authenticated user record not found in database', statusCode: 404 },
+      });
+      return;
+    }
+
+    const actorUser = userRes.rows[0];
+    if (!actorUser.is_active) {
+      res.status(403).json({
+        success: false,
+        error: { message: 'Your account is deactivated', statusCode: 403 },
+      });
+      return;
+    }
+
+    // Execute state transition inside row-level locked transaction
+    try {
+      const result = await executeStageTransitionWithLock({
+        applicationId: id,
+        toStage,
+        actorUserId: actorUser.id,
+        reason,
+        validateTransition: (from, to) => validateStageTransition(from, to, reason),
+      });
+
+      res.status(200).json({
+        success: true,
+        message: `Application transitioned from ${result.history.from_stage} to ${result.history.to_stage}`,
+        data: {
+          application: result.application,
+          history: result.history,
+        },
+      });
+    } catch (txError: any) {
+      if (txError.statusCode === 404) {
+        res.status(404).json({
+          success: false,
+          error: { message: txError.message, statusCode: 404 },
+        });
+        return;
+      }
+
+      if (txError.statusCode === 400 || txError.statusCode === 422) {
+        res.status(400).json({
+          success: false,
+          error: { message: txError.message, statusCode: 400 },
+        });
+        return;
+      }
+
+      console.error('[Update Application Stage Transaction Error]', txError);
+      res.status(500).json({
+        success: false,
+        error: {
+          message: 'Failed to update application stage',
+          statusCode: 500,
+          details: process.env.NODE_ENV !== 'production' ? txError.message : undefined,
+        },
+      });
+    }
+  } catch (error: any) {
+    console.error('[Update Application Stage Controller Error]', error);
+    res.status(500).json({
+      success: false,
+      error: {
+        message: 'Internal server error while updating application stage',
+        statusCode: 500,
+        details: process.env.NODE_ENV !== 'production' ? error.message : undefined,
+      },
+    });
+  }
+}
+
 
 

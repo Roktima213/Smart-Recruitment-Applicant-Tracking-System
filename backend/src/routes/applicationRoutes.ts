@@ -1,19 +1,20 @@
 import { Router } from 'express';
-import { authenticateFirebase } from '../middleware/authMiddleware';
+import { authenticateFirebase, requireRole } from '../middleware/authMiddleware';
 import { requireCandidateRole } from './candidateRoutes';
 import {
   submitApplication,
   getMyApplications,
   getApplicationById,
+  updateApplicationStage,
   submitApplicationSchema,
+  updateApplicationStageSchema,
 } from '../controllers/applicationController';
 import { validateRequest } from '../middleware/validateRequest';
 
 const router = Router();
 
-// Protect all /api/applications endpoints with Firebase authentication and CANDIDATE role guard
+// Protect all /api/applications endpoints with Firebase authentication
 router.use(authenticateFirebase);
-router.use(requireCandidateRole);
 
 /**
  * POST /api/applications
@@ -21,6 +22,7 @@ router.use(requireCandidateRole);
  */
 router.post(
   '/',
+  requireCandidateRole,
   validateRequest({ body: submitApplicationSchema }),
   submitApplication
 );
@@ -31,6 +33,7 @@ router.post(
  */
 router.get(
   '/me',
+  requireCandidateRole,
   getMyApplications
 );
 
@@ -43,5 +46,15 @@ router.get(
   getApplicationById
 );
 
-export default router;
+/**
+ * PATCH /api/applications/:id/stage
+ * HR / Admin-only stage transition with state machine validation and row-level locking
+ */
+router.patch(
+  '/:id/stage',
+  requireRole(['ADMIN', 'HR']),
+  validateRequest({ body: updateApplicationStageSchema }),
+  updateApplicationStage
+);
 
+export default router;
