@@ -145,8 +145,9 @@ describe('Private Resume Streaming & Ownership Verification (/api/resumes)', () 
 
       expect(res.status).toBe(200);
       expect(res.headers['content-type']).toContain('application/pdf');
-      expect(res.headers['content-disposition']).toContain('John_Doe_CV.pdf');
+      expect(res.headers['content-disposition']).toMatch(/^attachment;\s*filename="?John_Doe_CV\.pdf"?/);
       expect(res.headers['x-content-type-options']).toBe('nosniff');
+      expect(res.headers['cache-control']).toContain('private');
       expect(res.body.toString()).toContain('%PDF-1.7');
     });
 
