@@ -1,32 +1,37 @@
 import { Router } from 'express';
 import { authenticateFirebase } from '../middleware/authMiddleware';
+import { requireCandidateRole } from './candidateRoutes';
 import {
   submitApplication,
   getMyApplications,
-  getApplicationById,
+  submitApplicationSchema,
 } from '../controllers/applicationController';
+import { validateRequest } from '../middleware/validateRequest';
 
 const router = Router();
 
-// Protect all application routes with Firebase authentication
+// Protect all /api/applications endpoints with Firebase authentication and CANDIDATE role guard
 router.use(authenticateFirebase);
+router.use(requireCandidateRole);
 
 /**
  * POST /api/applications
- * Submit a job application with atomic stage history insertion.
+ * Candidate-only application submission within ACID transaction
  */
-router.post('/', submitApplication);
+router.post(
+  '/',
+  validateRequest({ body: submitApplicationSchema }),
+  submitApplication
+);
 
 /**
  * GET /api/applications/me
- * Candidate personal application tracking history.
+ * Candidate-only application history retrieval (newest first)
  */
-router.get('/me', getMyApplications);
-
-/**
- * GET /api/applications/:id
- * Retrieve single application detail with complete stage progression timeline.
- */
-router.get('/:id', getApplicationById);
+router.get(
+  '/me',
+  getMyApplications
+);
 
 export default router;
+

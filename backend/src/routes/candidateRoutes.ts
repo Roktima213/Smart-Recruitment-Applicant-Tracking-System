@@ -51,7 +51,7 @@ const upload = multer({
  * Strictly enforces that only users with CANDIDATE role can access candidate endpoints.
  * Rejects other roles (HR, ADMIN, etc.) with HTTP 403 Forbidden.
  */
-function requireCandidateRole(req: Request, res: Response, next: NextFunction): void {
+export function requireCandidateRole(req: Request, res: Response, next: NextFunction): void {
   if (!req.user) {
     res.status(401).json({
       error: 'Unauthorized',

@@ -11,7 +11,10 @@ import authRoutes from './routes/authRoutes';
 import adminRoutes from './routes/adminRoutes';
 import jobRoutes from './routes/jobRoutes';
 import candidateRoutes from './routes/candidateRoutes';
+<<<<<<< HEAD
 import resumeRoutes from './routes/resumeRoutes';
+=======
+>>>>>>> origin/backend
 import applicationRoutes from './routes/applicationRoutes';
 import { errorHandler } from './middleware/errorHandler';
 
@@ -114,7 +117,7 @@ app.use('/api/candidates', candidateRoutes);
 // Private Resume Streaming & Download endpoints
 app.use('/api/resumes', resumeRoutes);
 
-// Job Applications & Candidate Submissions endpoints
+// Job Application Submission & Candidate History endpoints
 app.use('/api/applications', applicationRoutes);
 
 // 404 Not Found Handler
