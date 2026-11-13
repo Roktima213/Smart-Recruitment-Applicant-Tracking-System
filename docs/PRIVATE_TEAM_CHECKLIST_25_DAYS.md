@@ -242,15 +242,15 @@ Establish Schema / API Contract               Build UI & State using Mock Data (
 ---
 
 #### 🔹 Day 13 (Floor 13): HR Candidate Search, Filters & Candidate Dossier Drawer
-* [ ] **Cloud:** `perf(db): add search indexes on candidate names skills and emails`
+* [x] **Cloud:** `perf(db): add search indexes on candidate names skills and emails`
   * Add PostgreSQL pg_trgm / full-text search indexes on candidate names and skills.
-* [ ] **Backend:** `feat(pipeline-api): add multi-filter candidate search and audit history api`
+* [x] **Backend:** `feat(pipeline-api): add multi-filter candidate search and audit history api`
   * Implement `GET /api/applications` with multi-filters (`jobId`, `stage`, `search`, `dateRange`) and `GET /api/applications/:id/history`.
-* [ ] **Frontend 1:** `feat(pipeline-ui): build candidate dossier slide-over drawer and history view`
+* [x] **Frontend 1:** `feat(pipeline-ui): build candidate dossier slide-over drawer and history view`
   * Build slide-over Candidate Dossier Drawer with profile info, resume preview, and timeline.
-* [ ] **Frontend 2:** `feat(pipeline-ui): implement filter state management and dossier data hooks`
+* [x] **Frontend 2:** `feat(pipeline-ui): implement filter state management and dossier data hooks`
   * Wire search bar, stage filters, and dossier detail fetcher.
-* [ ] **Leader / DevOps:** `test(e2e): initialize playwright and automate job-to-pipeline e2e test`
+* [x] **Leader / DevOps:** `test(e2e): initialize playwright and automate job-to-pipeline e2e test`
   * Automate Playwright E2E journey: HR creates job → Candidate applies → HR moves candidate to Screening.
 * **Daily Done Criteria:** HR filters candidates by skill/job; clicking a candidate opens dossier with stage history.
 
