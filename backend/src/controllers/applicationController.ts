@@ -364,3 +364,89 @@ export async function getMyApplications(req: Request, res: Response): Promise<vo
   }
 }
 
+/**
+ * 3. GET /api/applications/:id
+ * Retrieves a single application by ID if the requester is the candidate owner or privileged staff (HR/ADMIN).
+ */
+export async function getApplicationById(req: Request, res: Response): Promise<void> {
+  try {
+    const firebaseUid = req.user?.uid;
+    const userRole = req.user?.role;
+    if (!firebaseUid) {
+      res.status(401).json({
+        error: 'Unauthorized',
+        message: 'Authentication required prior to fetching application',
+      });
+      return;
+    }
+
+    const { id } = req.params;
+    if (!id || !UUID_REGEX.test(id)) {
+      res.status(400).json({
+        success: false,
+        error: { message: 'Invalid application UUID format', statusCode: 400 },
+      });
+      return;
+    }
+
+    const sql = `
+      SELECT 
+        a.id,
+        a.job_id,
+        a.candidate_id,
+        a.resume_id,
+        a.current_stage,
+        a.cover_letter,
+        a.answers,
+        a.applied_at,
+        a.updated_at,
+        u.firebase_uid AS candidate_firebase_uid
+      FROM applications a
+      JOIN candidate_profiles cp ON a.candidate_id = cp.id
+      JOIN users u ON cp.user_id = u.id
+      WHERE a.id = $1
+      LIMIT 1;
+    `;
+
+    const result = await query(sql, [id]);
+    if (result.rows.length === 0) {
+      res.status(404).json({
+        success: false,
+        error: { message: 'Application not found', statusCode: 404 },
+      });
+      return;
+    }
+
+    const appRecord = result.rows[0];
+    const isOwner = appRecord.candidate_firebase_uid === firebaseUid;
+    const isPrivileged = userRole === 'ADMIN' || userRole === 'HR';
+
+    if (!isOwner && !isPrivileged) {
+      res.status(403).json({
+        success: false,
+        error: {
+          message: 'Forbidden: You do not have permission to access this application',
+          statusCode: 403,
+        },
+      });
+      return;
+    }
+
+    res.status(200).json({
+      success: true,
+      data: appRecord,
+    });
+  } catch (error: any) {
+    console.error('[Get Application By Id Error]', error);
+    res.status(500).json({
+      success: false,
+      error: {
+        message: 'Failed to retrieve application details',
+        statusCode: 500,
+        details: process.env.NODE_ENV !== 'production' ? error.message : undefined,
+      },
+    });
+  }
+}
+
+

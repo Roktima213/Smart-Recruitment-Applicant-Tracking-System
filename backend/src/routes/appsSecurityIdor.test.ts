@@ -157,7 +157,6 @@ describe('Security & IDOR Auditing: Resume Streaming & Job Applications (Floor 1
       mockQuery.mockResolvedValueOnce({ rows: [{ id: 'u-bob', full_name: 'Bob Attacker' }] }); // users lookup
       mockQuery.mockResolvedValueOnce({ rows: [{ id: 'c-bob', user_id: 'u-bob' }] }); // candidate_profiles lookup
       mockQuery.mockResolvedValueOnce({ rows: [{ id: jobId, title: 'Lead Architect', status: 'PUBLISHED' }] }); // job lookup
-      mockQuery.mockResolvedValueOnce({ rows: [] }); // duplicate check: none
       // Resume check: Bob tries to use Alice's resumeId -> DB returns no matching rows for Bob's profile
       mockQuery.mockResolvedValueOnce({ rows: [] });
 
@@ -170,7 +169,7 @@ describe('Security & IDOR Auditing: Resume Streaming & Job Applications (Floor 1
         });
 
       expect(res.status).toBe(400);
-      expect(res.body.error.message).toContain('Specified resume does not belong');
+      expect(res.body.error.message).toMatch(/resume not found or does not belong/i);
     });
 
     it('SEC-DUP-01: Re-submitting an application for the same job returns 409 Conflict', async () => {
@@ -178,10 +177,16 @@ describe('Security & IDOR Auditing: Resume Streaming & Job Applications (Floor 1
       mockQuery.mockResolvedValueOnce({ rows: [{ id: 'u-alice', full_name: 'Alice Candidate' }] });
       mockQuery.mockResolvedValueOnce({ rows: [{ id: 'c-alice', user_id: 'u-alice' }] });
       mockQuery.mockResolvedValueOnce({ rows: [{ id: jobId, title: 'Lead Architect', status: 'PUBLISHED' }] });
-      // Duplicate application found
-      mockQuery.mockResolvedValueOnce({
-        rows: [{ id: appAliceId, current_stage: 'APPLIED', applied_at: new Date().toISOString() }],
-      });
+
+      const duplicateError: any = new Error(
+        'duplicate key value violates unique constraint "unique_job_candidate_application"'
+      );
+      duplicateError.code = '23505';
+      duplicateError.constraint = 'unique_job_candidate_application';
+
+      mockClientQuery.mockResolvedValueOnce({ rows: [] }); // BEGIN
+      mockClientQuery.mockRejectedValueOnce(duplicateError); // INSERT applications fails with 23505
+      mockClientQuery.mockResolvedValueOnce({ rows: [] }); // ROLLBACK
 
       const res = await request(app)
         .post('/api/applications')

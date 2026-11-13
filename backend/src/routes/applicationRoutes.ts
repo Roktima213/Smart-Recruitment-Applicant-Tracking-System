@@ -4,6 +4,7 @@ import { requireCandidateRole } from './candidateRoutes';
 import {
   submitApplication,
   getMyApplications,
+  getApplicationById,
   submitApplicationSchema,
 } from '../controllers/applicationController';
 import { validateRequest } from '../middleware/validateRequest';
@@ -31,6 +32,15 @@ router.post(
 router.get(
   '/me',
   getMyApplications
+);
+
+/**
+ * GET /api/applications/:id
+ * Retrieve single application details with ownership/role authorization
+ */
+router.get(
+  '/:id',
+  getApplicationById
 );
 
 export default router;
