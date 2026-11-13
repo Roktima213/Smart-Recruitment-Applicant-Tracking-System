@@ -402,10 +402,12 @@ export async function getApplicationById(req: Request, res: Response): Promise<v
         a.answers,
         a.applied_at,
         a.updated_at,
-        u.firebase_uid AS candidate_firebase_uid
+        u.firebase_uid AS candidate_firebase_uid,
+        j.company_id AS job_company_id
       FROM applications a
       JOIN candidate_profiles cp ON a.candidate_id = cp.id
       JOIN users u ON cp.user_id = u.id
+      JOIN jobs j ON a.job_id = j.id
       WHERE a.id = $1
       LIMIT 1;
     `;
@@ -421,9 +423,29 @@ export async function getApplicationById(req: Request, res: Response): Promise<v
 
     const appRecord = result.rows[0];
     const isOwner = appRecord.candidate_firebase_uid === firebaseUid;
-    const isPrivileged = userRole === 'ADMIN' || userRole === 'HR';
+    const isAdmin = userRole === 'ADMIN' || userRole === 'SUPER_ADMIN';
 
-    if (!isOwner && !isPrivileged) {
+    if (isOwner) {
+      // Candidate owner allowed
+    } else if (isAdmin) {
+      // Administrative override allowed
+    } else if (userRole === 'HR') {
+      let hrCompanyId = req.user?.companyId;
+      if (!hrCompanyId && firebaseUid) {
+        const userRes = await query('SELECT company_id FROM users WHERE firebase_uid = $1 LIMIT 1;', [firebaseUid]);
+        hrCompanyId = userRes.rows[0]?.company_id || null;
+      }
+      if (!hrCompanyId || !appRecord.job_company_id || hrCompanyId !== appRecord.job_company_id) {
+        res.status(403).json({
+          success: false,
+          error: {
+            message: 'Forbidden: You do not have permission to access this application',
+            statusCode: 403,
+          },
+        });
+        return;
+      }
+    } else {
       res.status(403).json({
         success: false,
         error: {
@@ -529,12 +551,22 @@ export async function updateApplicationStage(req: Request, res: Response): Promi
       return;
     }
 
+    if (actorUser.role === 'HR' && !actorUser.company_id) {
+      res.status(403).json({
+        success: false,
+        error: { message: 'Forbidden: HR user has no assigned company', statusCode: 403 },
+      });
+      return;
+    }
+
     // Execute state transition inside row-level locked transaction
     try {
       const result = await executeStageTransitionWithLock({
         applicationId: id,
         toStage,
         actorUserId: actorUser.id,
+        actorRole: actorUser.role,
+        actorCompanyId: actorUser.company_id,
         reason,
         validateTransition: (from, to) => validateStageTransition(from, to, reason),
       });
@@ -548,6 +580,13 @@ export async function updateApplicationStage(req: Request, res: Response): Promi
         },
       });
     } catch (txError: any) {
+      if (txError.statusCode === 403) {
+        res.status(403).json({
+          success: false,
+          error: { message: txError.message, statusCode: 403 },
+        });
+        return;
+      }
       if (txError.statusCode === 404) {
         res.status(404).json({
           success: false,
@@ -666,16 +705,31 @@ export async function listApplications(req: Request, res: Response): Promise<voi
       return;
     }
 
-    const page = Math.max(1, parseInt(rawPage || '1', 10) || 1);
-    const limit = Math.min(100, Math.max(1, parseInt(rawLimit || '20', 10) || 20));
+    let rawPageNum = parseInt(rawPage || '1', 10);
+    if (isNaN(rawPageNum) || rawPageNum < 1) rawPageNum = 1;
+    if (rawPageNum > 100000) rawPageNum = 100000;
+    const page = rawPageNum;
+
+    let rawLimitNum = parseInt(rawLimit || '20', 10);
+    if (isNaN(rawLimitNum) || rawLimitNum < 1) rawLimitNum = 20;
+    if (rawLimitNum > 100) rawLimitNum = 100;
+    const limit = rawLimitNum;
+
     const offset = (page - 1) * limit;
 
     const conditions: string[] = [];
     const values: any[] = [];
     let paramIndex = 1;
 
-    // Multi-tenant check: HR can only query jobs from their company
-    if (actor.role === 'HR' && actor.company_id) {
+    // Multi-tenant check: HR can only query jobs from their company (strict fail-closed)
+    if (actor.role === 'HR') {
+      if (!actor.company_id) {
+        res.status(403).json({
+          success: false,
+          error: { message: 'Forbidden: HR user has no assigned company', statusCode: 403 },
+        });
+        return;
+      }
       conditions.push(`j.company_id = $${paramIndex++}`);
       values.push(actor.company_id);
     }
@@ -898,11 +952,14 @@ export async function getApplicationHistory(req: Request, res: Response): Promis
       return;
     }
 
-    // If caller is HR, verify company matches
+    // If caller is HR, verify company matches (strict fail-closed)
     if (userRole === 'HR') {
-      const hrUserRes = await query(`SELECT company_id FROM users WHERE firebase_uid = $1 LIMIT 1;`, [firebaseUid]);
-      const hrCompanyId = hrUserRes.rows[0]?.company_id;
-      if (hrCompanyId && appRecord.job_company_id && hrCompanyId !== appRecord.job_company_id) {
+      let hrCompanyId = req.user?.companyId;
+      if (!hrCompanyId && firebaseUid) {
+        const hrUserRes = await query(`SELECT company_id FROM users WHERE firebase_uid = $1 LIMIT 1;`, [firebaseUid]);
+        hrCompanyId = hrUserRes.rows[0]?.company_id || null;
+      }
+      if (!hrCompanyId || !appRecord.job_company_id || hrCompanyId !== appRecord.job_company_id) {
         res.status(403).json({
           success: false,
           error: {

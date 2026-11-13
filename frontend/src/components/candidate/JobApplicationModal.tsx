@@ -295,9 +295,10 @@ export const JobApplicationModal: React.FC<JobApplicationModalProps> = ({
         }
       }
 
-      // 2. Attempt to call POST /api/applications endpoint
+      // 2. Submit to POST /api/applications endpoint
+      let response;
       try {
-        await apiClient.post('/applications', {
+        response = await apiClient.post('/applications', {
           jobId: job.id,
           resumeId: selectedResume.id,
           coverLetter: coverNotes.trim(),
@@ -309,17 +310,30 @@ export const JobApplicationModal: React.FC<JobApplicationModalProps> = ({
           },
         });
       } catch (apiErr: any) {
-        // Handle 409 Conflict from backend duplicate check
-        if (apiErr.response?.status === 409) {
-          setErrorMessage(
-            apiErr.response?.data?.error?.message ||
-              'You have already applied for this job requisition. Duplicate submissions are not allowed.'
-          );
-          setIsSubmitting(false);
-          return;
-        }
-        // If 404 or backend route is still being scaffolded by backend teammate, log and continue smoothly
-        console.warn('[JobApplicationModal] Backend API submission notice:', apiErr.message);
+        const errorMsg =
+          apiErr.response?.data?.error?.message ||
+          apiErr.response?.data?.message ||
+          apiErr.message ||
+          'Failed to submit application. Please try again.';
+        setErrorMessage(errorMsg);
+        toast.error(errorMsg, 'Submission Failed');
+        setIsSubmitting(false);
+        return;
+      }
+
+      // Strictly verify HTTP 201 Created from backend
+      if (response.status !== 201 && response.status !== 200) {
+        const errorMsg = response.data?.error?.message || 'Server rejected application submission.';
+        setErrorMessage(errorMsg);
+        toast.error(errorMsg, 'Submission Failed');
+        setIsSubmitting(false);
+        return;
+      }
+
+      // Synchronize created ID if returned from server
+      const createdRecord = response.data?.application || response.data?.data;
+      if (createdRecord?.id) {
+        newApplicationPayload.id = createdRecord.id;
       }
 
       // 3. Persist into Local Storage for instant offline/emulator reactivity across pages
@@ -343,7 +357,9 @@ export const JobApplicationModal: React.FC<JobApplicationModalProps> = ({
         onApplicationSubmitted(newApplicationPayload);
       }
     } catch (err: any) {
-      setErrorMessage(err.message || 'An unexpected error occurred while submitting your application.');
+      const generalMsg = err.message || 'An unexpected error occurred while submitting your application.';
+      setErrorMessage(generalMsg);
+      toast.error(generalMsg, 'Submission Error');
     } finally {
       setIsSubmitting(false);
     }

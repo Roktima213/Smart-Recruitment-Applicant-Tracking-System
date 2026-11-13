@@ -107,13 +107,41 @@ export const listJobs = async (req: Request, res: Response): Promise<void> => {
     const userRole = (req.user?.role || '').toUpperCase();
     const isStaff = userRole === 'ADMIN' || userRole === 'HR' || userRole === 'SUPER_ADMIN';
 
+    let hrCompanyId: string | null = null;
+    if (userRole === 'HR') {
+      hrCompanyId = req.user?.companyId || null;
+      if (!hrCompanyId && req.user?.uid) {
+        const userRes = await pool.query('SELECT company_id FROM users WHERE firebase_uid = $1;', [req.user.uid]);
+        hrCompanyId = userRes.rows[0]?.company_id || null;
+      }
+      if (!hrCompanyId) {
+        res.status(403).json({
+          success: false,
+          error: { message: 'Forbidden: HR user has no assigned company', statusCode: 403 },
+        });
+        return;
+      }
+    }
+
     if (statusParam) {
       const normalizedStatus = statusParam.toUpperCase();
       const validStatuses = ['DRAFT', 'PUBLISHED', 'CLOSED', 'ARCHIVED'];
       if (validStatuses.includes(normalizedStatus)) {
-        if (isStaff || normalizedStatus === 'PUBLISHED') {
+        if (userRole === 'ADMIN' || userRole === 'SUPER_ADMIN') {
           conditions.push(`j.status = $${paramIndex++}`);
           values.push(normalizedStatus);
+        } else if (userRole === 'HR') {
+          if (normalizedStatus === 'PUBLISHED') {
+            conditions.push(`j.status = $${paramIndex++}`);
+            values.push('PUBLISHED');
+          } else {
+            conditions.push(`j.status = $${paramIndex++}`);
+            values.push(normalizedStatus);
+            conditions.push(`j.company_id = $${paramIndex++}`);
+            values.push(hrCompanyId);
+          }
+        } else if (normalizedStatus === 'PUBLISHED') {
+          conditions.push(`j.status = 'PUBLISHED'`);
         } else {
           conditions.push(`j.status = 'PUBLISHED'`);
         }
@@ -125,6 +153,10 @@ export const listJobs = async (req: Request, res: Response): Promise<void> => {
           conditions.push(`j.status = 'PUBLISHED'`);
         }
       }
+    } else if (userRole === 'HR') {
+      // HR viewing job directory without status filter: can view all PUBLISHED jobs plus non-published jobs from their company
+      conditions.push(`(j.status = 'PUBLISHED' OR j.company_id = $${paramIndex++})`);
+      values.push(hrCompanyId);
     } else if (!isStaff) {
       conditions.push(`j.status = 'PUBLISHED'`);
     }
@@ -288,15 +320,37 @@ export const getJobById = async (req: Request, res: Response): Promise<void> => 
 
     const job = result.rows[0];
     const userRole = (req.user?.role || '').toUpperCase();
-    const isStaff = userRole === 'ADMIN' || userRole === 'HR' || userRole === 'SUPER_ADMIN';
+    const isAdmin = userRole === 'ADMIN' || userRole === 'SUPER_ADMIN';
 
-    // Gate unreleased non-published drafts from candidates/public
-    if (job.status !== 'PUBLISHED' && !isStaff) {
-      res.status(404).json({
-        success: false,
-        error: { message: 'Job not found', statusCode: 404 },
-      });
-      return;
+    // Gate unreleased non-published drafts from candidates/public and cross-company HR
+    if (job.status !== 'PUBLISHED') {
+      if (isAdmin) {
+        // Global administrative access allowed
+      } else if (userRole === 'HR') {
+        let hrCompanyId = req.user?.companyId;
+        if (!hrCompanyId && req.user?.uid) {
+          const userRes = await pool.query('SELECT company_id FROM users WHERE firebase_uid = $1;', [req.user.uid]);
+          hrCompanyId = userRes.rows[0]?.company_id || null;
+        }
+        if (!hrCompanyId || !job.company_id || hrCompanyId !== job.company_id) {
+          res.status(403).json({
+            success: false,
+            error: {
+              message: !hrCompanyId
+                ? 'Forbidden: HR user has no assigned company'
+                : 'Forbidden: You are not authorized to view unreleased job requisitions belonging to another organization',
+              statusCode: 403,
+            },
+          });
+          return;
+        }
+      } else {
+        res.status(404).json({
+          success: false,
+          error: { message: 'Job not found', statusCode: 404 },
+        });
+        return;
+      }
     }
 
     res.status(200).json({
@@ -334,19 +388,34 @@ export const createJob = async (req: Request, res: Response): Promise<void> => {
 
     // Resolve creator's PostgreSQL user ID and company_id
     let creatorId: string | null = null;
-    let targetCompanyId: string | null = company_id || null;
+    let targetCompanyId: string | null = null;
 
     if (firebaseUid) {
       const userRes = await pool.query('SELECT id, company_id FROM users WHERE firebase_uid = $1;', [firebaseUid]);
       if (userRes.rows.length > 0) {
         creatorId = userRes.rows[0].id;
-        // Tenant isolation: HR users must always create jobs under their own assigned company
-        if (req.user?.role === 'HR' && userRes.rows[0].company_id) {
-          targetCompanyId = userRes.rows[0].company_id;
-        } else if (!targetCompanyId) {
-          targetCompanyId = userRes.rows[0].company_id;
+        // Tenant isolation: HR users must always create jobs strictly under their own assigned company
+        if (req.user?.role === 'HR') {
+          targetCompanyId = userRes.rows[0].company_id || req.user?.companyId || null;
+        } else {
+          targetCompanyId = company_id || userRes.rows[0].company_id || null;
         }
       }
+    }
+
+    if (req.user?.role === 'HR') {
+      if (!targetCompanyId) {
+        targetCompanyId = req.user?.companyId || null;
+      }
+      if (!targetCompanyId) {
+        res.status(403).json({
+          success: false,
+          error: { message: 'Forbidden: HR user has no assigned company', statusCode: 403 },
+        });
+        return;
+      }
+    } else if (!targetCompanyId) {
+      targetCompanyId = company_id || null;
     }
 
     // Fallback: If no company assigned, attach to default primary company
@@ -443,14 +512,14 @@ export const updateJob = async (req: Request, res: Response): Promise<void> => {
 
     const currentJob = existingRes.rows[0];
 
-    // Tenant isolation: HR users can only modify jobs in their own company
-    if (req.user?.role === 'HR' && currentJob.company_id) {
+    // Tenant isolation: HR users can only modify jobs in their own company (strict fail-closed)
+    if (req.user?.role === 'HR') {
       let userCompanyId = req.user.companyId;
       if (!userCompanyId && req.user.uid) {
         const userRes = await pool.query('SELECT company_id FROM users WHERE firebase_uid = $1;', [req.user.uid]);
-        userCompanyId = userRes.rows[0]?.company_id;
+        userCompanyId = userRes.rows[0]?.company_id || null;
       }
-      if (userCompanyId && currentJob.company_id !== userCompanyId) {
+      if (!userCompanyId || !currentJob.company_id || currentJob.company_id !== userCompanyId) {
         res.status(403).json({
           success: false,
           error: { message: 'Forbidden: You are not authorized to modify job requisitions belonging to another organization', statusCode: 403 },
@@ -561,14 +630,14 @@ export const updateJobStatus = async (req: Request, res: Response): Promise<void
 
     const current = existingRes.rows[0];
 
-    // Tenant isolation: HR users can only modify jobs in their own company
-    if (req.user?.role === 'HR' && current.company_id) {
+    // Tenant isolation: HR users can only modify jobs in their own company (strict fail-closed)
+    if (req.user?.role === 'HR') {
       let userCompanyId = req.user.companyId;
       if (!userCompanyId && req.user.uid) {
         const userRes = await pool.query('SELECT company_id FROM users WHERE firebase_uid = $1;', [req.user.uid]);
-        userCompanyId = userRes.rows[0]?.company_id;
+        userCompanyId = userRes.rows[0]?.company_id || null;
       }
-      if (userCompanyId && current.company_id !== userCompanyId) {
+      if (!userCompanyId || !current.company_id || current.company_id !== userCompanyId) {
         res.status(403).json({
           success: false,
           error: { message: 'Forbidden: You are not authorized to modify job requisitions belonging to another organization', statusCode: 403 },

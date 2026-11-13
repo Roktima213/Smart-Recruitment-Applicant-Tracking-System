@@ -361,11 +361,11 @@ describe('Candidate Profile & Secure Resume Upload APIs (/api/candidates)', () =
       Buffer.alloc(100, 'A'),
     ]);
 
-    // Valid DOCX buffer starting with PK\x03\x04
-    const validDocxBuffer = Buffer.concat([
-      Buffer.from([0x50, 0x4b, 0x03, 0x04]),
-      Buffer.from('sample docx zip stream payload data'),
-    ]);
+    // Valid DOCX buffer starting with PK\x03\x04 and containing valid OpenXML structures
+    const validDocxBuffer = Buffer.from(
+      'UEsDBBQAAAgIANBpbV2ZWmaJIQAAACQAAAATAAAAW0NvbnRlbnRfVHlwZXNdLnhtbLOxr8jNUShLLSrOzM+zVTLUM1Cyt7MJqSxILbaz0YfQAFBLAwQUAAAICADQaW1dvjScXW4AAACGAAAAEQAAAHdvcmQvZG9jdW1lbnQueG1sTc1BDsIgEEDRqzQcoIMuXBBKz4KALQkzQxgUvL1xYeLur963+8SyvFKTzLSpy6rV7uwwkcMTE/VlYiExY1Nn79UASDgTelm5JppYHtzQd1m5HTC4xdo4JJFMBxa4an0D9JnUl7xzfDsLf/GbuA9QSwECPwMUAAAICADQaW1dmVpmiSEAAAAkAAAAEwAJAAAAAAAAAAAAtIEAAAAAW0NvbnRlbnRfVHlwZXNdLnhtbFVUBQAD4b/2alBLAQI/AxQAAAgIANBpbV2+NJxdbgAAAIYAAAARAAkAAAAAAAAAAAC0gVIAAAB3b3JkL2RvY3VtZW50LnhtbFVUBQAD4b/2alBLBQYAAAAAAgACAJIAAADvAAAAAAA=',
+      'base64'
+    );
 
     // Fake executable payload (MZ header) with .pdf extension
     const fakeExeRenamedToPdf = Buffer.concat([

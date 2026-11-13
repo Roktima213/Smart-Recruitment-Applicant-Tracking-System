@@ -44,6 +44,7 @@ describe('Job Requisitions & Lifecycle Endpoints (/api/jobs)', () => {
     uid: 'hr-firebase-uid',
     email: 'hr@ats.local',
     role: 'HR',
+    companyId: 'comp-uuid-1',
     isActive: true,
   };
 
@@ -258,7 +259,7 @@ describe('Job Requisitions & Lifecycle Endpoints (/api/jobs)', () => {
       mockVerifyFirebaseIdToken.mockResolvedValueOnce(hrTokenPayload);
       // existing job check
       mockQuery.mockResolvedValueOnce({
-        rows: [{ id: validJobId, status: 'DRAFT', published_at: null }],
+        rows: [{ id: validJobId, company_id: 'comp-uuid-1', status: 'DRAFT', published_at: null }],
       });
       // update query returning
       mockQuery.mockResolvedValueOnce({

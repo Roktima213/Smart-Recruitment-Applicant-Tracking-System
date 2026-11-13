@@ -94,8 +94,11 @@ export async function listAllUsers(req: Request, res: Response): Promise<void> {
     const rawRole = Array.isArray(req.query.role) ? req.query.role[0] : req.query.role;
     const rawQ = Array.isArray(req.query.q) ? req.query.q[0] : req.query.q;
 
-    const limit = Math.min(Math.max(Number(rawLimit) || 50, 1), 100);
-    const offset = Math.max(Number(rawOffset) || 0, 0);
+    const parsedLimit = Number(rawLimit);
+    const limit = Number.isFinite(parsedLimit) ? Math.min(Math.max(Math.floor(parsedLimit), 1), 100) : 50;
+
+    const parsedOffset = Number(rawOffset);
+    const offset = Number.isFinite(parsedOffset) ? Math.min(Math.max(Math.floor(parsedOffset), 0), 10000000) : 0;
     const roleFilter = rawRole ? String(rawRole).trim().toUpperCase() : null;
     const searchQuery = rawQ ? String(rawQ).trim() : null;
 

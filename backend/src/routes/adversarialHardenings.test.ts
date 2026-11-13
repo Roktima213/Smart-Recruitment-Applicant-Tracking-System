@@ -223,6 +223,7 @@ describe('Adversarial Security, Edge Cases & Robustness Test Suite', () => {
       mockQuery.mockResolvedValueOnce({
         rows: [
           {
+            company_id: 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
             status: 'CLOSED',
             published_at: new Date('2026-10-01').toISOString(),
             closed_at: new Date('2026-11-01').toISOString(),

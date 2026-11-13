@@ -6,6 +6,7 @@ import path from 'path';
 import crypto from 'crypto';
 import { query } from '../config/database';
 import { storageConfig, ensureStorageDirectory, getSafeStoragePath } from '../config/storage';
+import { storeResume } from '../services/resumeStorageService';
 
 /**
  * Magic-byte file signature validation
@@ -450,22 +451,40 @@ export async function uploadResume(req: Request, res: Response): Promise<void> {
       return;
     }
 
-    // 4. Calculate SHA-256 integrity hash
-    const sha256Hash = crypto.createHash('sha256').update(fileBuffer).digest('hex');
-
-    // 5. Ensure stored file has appropriate extension matching its verified magic byte
-    const currentStoredName = path.basename(uploadedPath);
-    let finalStoredName = currentStoredName;
-    let finalPath = uploadedPath;
-
-    if (detection.extension && !currentStoredName.endsWith(detection.extension)) {
-      const sanitizedBase = path.parse(currentStoredName).name;
-      finalStoredName = `${sanitizedBase}${detection.extension}`;
-      finalPath = path.join(path.dirname(uploadedPath), finalStoredName);
-      await fs.promises.rename(uploadedPath, finalPath);
+    // 4. Delegate to production-grade resumeStorageService for deep OpenXML / PDF inspection & safe storage
+    let storedResume;
+    try {
+      storedResume = await storeResume({
+        originalFilename: file.originalname,
+        mimeType: detection.detectedMimeType,
+        buffer: fileBuffer,
+      });
+    } catch (storageErr: any) {
+      if (fs.existsSync(uploadedPath)) {
+        await fs.promises.unlink(uploadedPath);
+      }
+      res.status(400).json({
+        success: false,
+        error: {
+          message: `Invalid file format. Only valid PDF and DOCX files with verified magic-byte headers are accepted: ${storageErr.message}`,
+          statusCode: 400,
+        },
+      });
+      return;
     }
 
-    // 6. Retrieve candidate profile to associate resume
+    // Remove multer temporary upload now that storeResume has written the validated file
+    if (fs.existsSync(uploadedPath)) {
+      try {
+        await fs.promises.unlink(uploadedPath);
+      } catch {
+        // ignore
+      }
+    }
+
+    const finalPath = getSafeStoragePath(storedResume.storedFilename);
+
+    // 5. Retrieve candidate profile to associate resume
     const data = await getOrCreateCandidateProfile(uid);
     if (!data) {
       if (fs.existsSync(finalPath)) {
@@ -480,7 +499,7 @@ export async function uploadResume(req: Request, res: Response): Promise<void> {
 
     const { profile } = data;
 
-    // 7. Store metadata in PostgreSQL resume_metadata table
+    // 6. Store metadata in PostgreSQL resume_metadata table
     try {
       const insertSql = `
         INSERT INTO resume_metadata (
@@ -497,10 +516,10 @@ export async function uploadResume(req: Request, res: Response): Promise<void> {
       const result = await query(insertSql, [
         profile.id,
         path.basename(file.originalname).substring(0, 255),
-        finalStoredName,
-        fileSizeBytes,
-        detection.detectedMimeType,
-        sha256Hash,
+        storedResume.storedFilename,
+        storedResume.size,
+        storedResume.mimeType,
+        storedResume.sha256,
       ]);
       const savedResume = result.rows[0];
 

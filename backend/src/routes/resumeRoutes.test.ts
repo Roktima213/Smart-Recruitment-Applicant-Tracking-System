@@ -48,6 +48,7 @@ describe('Private Resume Streaming & Ownership Verification (/api/resumes)', () 
     uid: 'hr-user-firebase-uid',
     email: 'hr@company.com',
     role: 'HR',
+    companyId: 'company-uuid-1',
     isActive: true,
   };
 
@@ -149,9 +150,10 @@ describe('Private Resume Streaming & Ownership Verification (/api/resumes)', () 
       expect(res.body.toString()).toContain('%PDF-1.7');
     });
 
-    it('6. Privileged Access: HR can download any candidate resume (200 OK)', async () => {
+    it('6. Privileged Access: HR can download candidate resume when candidate applied to company (200 OK)', async () => {
       mockVerifyFirebaseIdToken.mockResolvedValueOnce(hrUser);
       mockQuery.mockResolvedValueOnce({ rows: [mockResumeRow] });
+      mockQuery.mockResolvedValueOnce({ rows: [{ exists: 1 }] });
 
       const res = await request(app)
         .get(`/api/resumes/${resumeId}/download`)
@@ -160,6 +162,19 @@ describe('Private Resume Streaming & Ownership Verification (/api/resumes)', () 
       expect(res.status).toBe(200);
       expect(res.headers['content-type']).toContain('application/pdf');
       expect(res.body.toString()).toContain('%PDF-1.7');
+    });
+
+    it('6b. Cross-Tenant Protection: Competitor HR cannot download resume if candidate never applied to company (403 Forbidden)', async () => {
+      mockVerifyFirebaseIdToken.mockResolvedValueOnce(hrUser);
+      mockQuery.mockResolvedValueOnce({ rows: [mockResumeRow] });
+      mockQuery.mockResolvedValueOnce({ rows: [] }); // No matching application for HR's company
+
+      const res = await request(app)
+        .get(`/api/resumes/${resumeId}/download`)
+        .set('Authorization', 'Bearer valid-jwt');
+
+      expect(res.status).toBe(403);
+      expect(res.body.error.message).toContain('Forbidden');
     });
 
     it('7. Privileged Access: ADMIN can download any candidate resume (200 OK)', async () => {

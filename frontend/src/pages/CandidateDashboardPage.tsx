@@ -280,15 +280,64 @@ export const CandidateDashboardPage: React.FC = () => {
   const [isJobModalOpen, setIsJobModalOpen] = useState(false);
 
   // Sync stored submitted applications from localStorage or backend
+  const mapApiApplicationToRecord = (raw: any): ApplicationRecord => {
+    const stage = (raw.currentStage || raw.stage || 'APPLIED') as ApplicationStage;
+    const company = raw.company || raw.job?.companyName || raw.companyName || 'Hiring Company';
+    const location = raw.location || raw.job?.location || 'Remote';
+    const department = raw.department || raw.job?.department || 'General';
+    const jobTitle = raw.jobTitle || raw.job?.title || 'Open Position';
+
+    let submittedOn = raw.submittedOn;
+    if (!submittedOn && (raw.appliedAt || raw.applied_at || raw.submittedAtIso)) {
+      const d = new Date(raw.appliedAt || raw.applied_at || raw.submittedAtIso);
+      if (!isNaN(d.getTime())) {
+        submittedOn = d.toLocaleDateString('en-US', {
+          month: 'short',
+          day: '2-digit',
+          year: 'numeric',
+        });
+      }
+    }
+    if (!submittedOn) {
+      submittedOn = new Date().toLocaleDateString('en-US', {
+        month: 'short',
+        day: '2-digit',
+        year: 'numeric',
+      });
+    }
+
+    return {
+      ...raw,
+      id: raw.id,
+      jobId: raw.jobId || raw.job?.id || '',
+      jobTitle,
+      company,
+      location,
+      department,
+      stage,
+      submittedOn,
+      submittedAtIso: raw.appliedAt || raw.applied_at || raw.submittedAtIso,
+      nextAction:
+        raw.nextAction ||
+        (stage === 'APPLIED' ? 'Application received. Awaiting talent acquisition screening.' : `In ${stage} stage.`),
+      resumeId: raw.resumeId || raw.resume_id,
+      resumeFileName: raw.resumeFileName || raw.resume_file_name,
+      resumeFileSize: raw.resumeFileSize || raw.resume_file_size,
+      atsScore: raw.atsScore || 95,
+      coverNotes: raw.coverNotes || raw.coverLetter || raw.cover_letter,
+    };
+  };
+
   useEffect(() => {
     try {
       const storedRaw = localStorage.getItem(STORAGE_APPLICATIONS_KEY);
       if (storedRaw) {
         const storedList = JSON.parse(storedRaw);
         if (Array.isArray(storedList) && storedList.length > 0) {
+          const mappedStored = storedList.map(mapApiApplicationToRecord);
           setApplications((prev) => {
             const existingIds = new Set(prev.map((p) => p.id));
-            const newItems = storedList.filter((s: ApplicationRecord) => !existingIds.has(s.id));
+            const newItems = mappedStored.filter((s: ApplicationRecord) => !existingIds.has(s.id));
             return [...newItems, ...prev];
           });
         }
@@ -302,10 +351,11 @@ export const CandidateDashboardPage: React.FC = () => {
       .get('/applications/me')
       .then((res) => {
         if (res.data?.applications && Array.isArray(res.data.applications)) {
+          const mappedApiApps = res.data.applications.map(mapApiApplicationToRecord);
           setApplications((prev) => {
-            const apiIds = new Set(res.data.applications.map((a: any) => a.id));
+            const apiIds = new Set(mappedApiApps.map((a: ApplicationRecord) => a.id));
             const localOnly = prev.filter((p) => !apiIds.has(p.id));
-            return [...res.data.applications, ...localOnly];
+            return [...mappedApiApps, ...localOnly];
           });
         }
       })

@@ -155,8 +155,10 @@ export async function executeStageTransitionWithLock(params: {
   reason: string;
   validateTransition: (fromStage: string, toStage: string) => { valid: boolean; error?: string };
   providedClient?: PoolClient;
+  actorRole?: string;
+  actorCompanyId?: string | null;
 }): Promise<TransitionResult> {
-  const { applicationId, toStage, actorUserId, reason, validateTransition, providedClient } = params;
+  const { applicationId, toStage, actorUserId, reason, validateTransition, providedClient, actorRole, actorCompanyId } = params;
   const startTime = Date.now();
   const client = providedClient || (await getClient());
   const shouldReleaseClient = !providedClient;
@@ -179,6 +181,15 @@ export async function executeStageTransitionWithLock(params: {
     lockAcquired = true;
     const applicationRecord: LockedApplicationRecord = lockResult.rows[0];
     currentFromStage = applicationRecord.current_stage;
+
+    // Multi-tenant check: HR user can only transition applications for jobs in their own company
+    if (actorRole === 'HR') {
+      if (!actorCompanyId || !applicationRecord.company_id || actorCompanyId !== applicationRecord.company_id) {
+        const err = new Error('Forbidden: You are not authorized to transition applications belonging to another organization');
+        (err as any).statusCode = 403;
+        throw err;
+      }
+    }
 
     // 2. Validate stage transition state machine rules
     const validation = validateTransition(currentFromStage, toStage);

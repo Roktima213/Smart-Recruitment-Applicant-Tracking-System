@@ -77,12 +77,49 @@ router.get('/:id/download', async (req: Request, res: Response): Promise<void> =
     const role = (currentUser.role || '').toUpperCase();
 
     // IDOR & Authorization Guard:
-    // HR and ADMIN can review any resume.
-    // CANDIDATE can only access their own resume.
-    const isPrivileged = role === 'ADMIN' || role === 'HR';
+    // 1. Candidate owner can download their own resume.
+    // 2. Global ADMIN can review any candidate resume.
+    // 3. HR can ONLY review candidate resumes if the candidate has applied to a job in HR's company.
     const isOwner = currentUser.uid === resume.candidate_firebase_uid;
+    const isAdmin = role === 'ADMIN' || role === 'SUPER_ADMIN';
 
-    if (!isPrivileged && !isOwner) {
+    if (isOwner) {
+      // Owner candidate access allowed
+    } else if (isAdmin) {
+      // Global admin access allowed
+    } else if (role === 'HR') {
+      let hrCompanyId = currentUser.companyId;
+      if (!hrCompanyId && currentUser.uid) {
+        const hrRes = await query('SELECT company_id FROM users WHERE firebase_uid = $1 LIMIT 1;', [currentUser.uid]);
+        hrCompanyId = hrRes.rows[0]?.company_id || null;
+      }
+      if (!hrCompanyId) {
+        res.status(403).json({
+          success: false,
+          error: { message: 'Forbidden: HR user has no assigned company', statusCode: 403 },
+        });
+        return;
+      }
+
+      const appMatchSql = `
+        SELECT 1 FROM applications a
+        JOIN jobs j ON a.job_id = j.id
+        WHERE j.company_id = $1
+          AND (a.resume_id = $2 OR a.candidate_id = $3)
+        LIMIT 1;
+      `;
+      const appMatchRes = await query(appMatchSql, [hrCompanyId, resumeId, resume.candidate_id]);
+      if (appMatchRes.rows.length === 0) {
+        res.status(403).json({
+          success: false,
+          error: {
+            message: 'Forbidden: You do not have permission to access resumes outside your organization applications',
+            statusCode: 403,
+          },
+        });
+        return;
+      }
+    } else {
       res.status(403).json({
         success: false,
         error: {

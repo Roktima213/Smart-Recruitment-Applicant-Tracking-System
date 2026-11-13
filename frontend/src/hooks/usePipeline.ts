@@ -274,6 +274,11 @@ export const usePipeline = () => {
       toStage: ApplicationStage,
       reason: string
     ): Promise<boolean> => {
+      // Prevent in-flight re-entrancy
+      if (updatingAppId === applicationId) {
+        return false;
+      }
+
       // 0. Check network availability
       if (typeof navigator !== 'undefined' && !navigator.onLine) {
         toast.error('Network unavailable. Cannot update candidate stage while offline.');
@@ -388,7 +393,7 @@ export const usePipeline = () => {
         setUpdatingAppId(null);
       }
     },
-    [applications, selectedDossierApp, toast]
+    [applications, selectedDossierApp, toast, updatingAppId]
   );
 
   return {
