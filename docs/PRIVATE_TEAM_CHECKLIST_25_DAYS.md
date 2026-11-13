@@ -279,7 +279,7 @@ Establish Schema / API Contract               Build UI & State using Mock Data (
   * Build `meetingService.ts` normalizing timestamps to UTC and generating meeting URLs.
 * [ ] **Backend:** `feat(interviews-api): implement interview scheduling and conflict check api`
   * Implement `POST /api/interviews` and `GET /api/interviews` with interviewer conflict validation.
-* [ ] **Frontend 1:** `feat(interviews-ui): build interview calendar list view and scheduling modal`
+* [x] **Frontend 1:** `feat(interviews-ui): build interview calendar list view and scheduling modal`
   * Build Page 5: Interviews (`/hr/interviews` & `/candidate/interviews`) with Calendar/List view and Schedule Modal.
 * [ ] **Frontend 2:** `feat(interviews-ui): wire interview form validation and conflict error handling`
   * Wire interview form date-time picker, interviewer selector, and schedule mutation.

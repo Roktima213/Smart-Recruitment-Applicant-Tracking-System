@@ -1,4 +1,6 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
+import { Link } from 'react-router-dom';
+import { ROUTES } from '../constants/routes';
 import {
   FileText,
   Clock,
@@ -20,6 +22,7 @@ import { useAuth } from '../context/AuthContext';
 import { Button } from '../components/ui/Button';
 import { Badge } from '../components/ui/Badge';
 import { Modal } from '../components/ui/Modal';
+import { Pagination } from '../components/ui/Pagination';
 import { apiClient } from '../services/apiClient';
 import {
   ProfileEditor,
@@ -379,6 +382,9 @@ export const CandidateDashboardPage: React.FC = () => {
   };
 
   // Filtered applications by stage & search query
+  const [applicationsPage, setApplicationsPage] = useState<number>(1);
+  const APPLICATIONS_PER_PAGE = 3;
+
   const filteredApplications = useMemo(() => {
     return applications.filter((app) => {
       const matchesStage = appFilter === 'ALL' || app.stage === appFilter;
@@ -393,6 +399,17 @@ export const CandidateDashboardPage: React.FC = () => {
       return matchesStage && matchesSearch;
     });
   }, [applications, appFilter, searchQuery]);
+
+  // Reset page when filter or search changes
+  useEffect(() => {
+    setApplicationsPage(1);
+  }, [appFilter, searchQuery]);
+
+  const totalAppPages = Math.ceil(filteredApplications.length / APPLICATIONS_PER_PAGE);
+  const paginatedApplications = useMemo(() => {
+    const start = (applicationsPage - 1) * APPLICATIONS_PER_PAGE;
+    return filteredApplications.slice(start, start + APPLICATIONS_PER_PAGE);
+  }, [filteredApplications, applicationsPage]);
 
   // ---------------------------------------------------------------------------
   // 5. Dynamic Profile Completeness Calculation
@@ -926,14 +943,45 @@ export const CandidateDashboardPage: React.FC = () => {
             </div>
           ) : (
             <div className="space-y-5">
-              {filteredApplications.map((app) => (
-                <ApplicationStatusCard
-                  key={app.id}
-                  application={app}
-                  onWithdraw={handleWithdrawApplication}
-                  onViewDetails={(appRecord) => setSelectedApplication(appRecord)}
-                />
-              ))}
+              <div
+                role="status"
+                aria-live="polite"
+                className="sr-only"
+              >
+                Showing page {applicationsPage} of {totalAppPages}, {filteredApplications.length} total applications matching criteria.
+              </div>
+
+              <div className="space-y-4">
+                {paginatedApplications.map((app) => (
+                  <ApplicationStatusCard
+                    key={app.id}
+                    application={app}
+                    onWithdraw={handleWithdrawApplication}
+                    onViewDetails={(appRecord) => setSelectedApplication(appRecord)}
+                  />
+                ))}
+              </div>
+
+              {/* Pagination Controls */}
+              {totalAppPages > 1 && (
+                <div className="pt-4 border-t border-slate-200/80 flex flex-col sm:flex-row items-center justify-between gap-3">
+                  <p className="text-xs text-slate-500">
+                    Showing <strong className="text-slate-800">{(applicationsPage - 1) * APPLICATIONS_PER_PAGE + 1}</strong> to{' '}
+                    <strong className="text-slate-800">
+                      {Math.min(applicationsPage * APPLICATIONS_PER_PAGE, filteredApplications.length)}
+                    </strong>{' '}
+                    of <strong className="text-slate-800">{filteredApplications.length}</strong> applications
+                  </p>
+                  <Pagination
+                    currentPage={applicationsPage}
+                    totalPages={totalAppPages}
+                    onPageChange={(p) => {
+                      setApplicationsPage(p);
+                      window.scrollTo({ top: 0, behavior: 'smooth' });
+                    }}
+                  />
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -945,11 +993,20 @@ export const CandidateDashboardPage: React.FC = () => {
       {activeTab === 'interviews' && (
         <div className="space-y-6 animate-fadeIn">
           <div className="bg-white rounded-2xl border border-slate-200/90 shadow-xs p-6 sm:p-8 space-y-6">
-            <div>
-              <h2 className="text-xl font-bold text-slate-900 tracking-tight">Upcoming Interviews</h2>
-              <p className="text-xs text-slate-500 mt-0.5">
-                Review your interview rounds, video conference links, and preparation recommendations.
-              </p>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div>
+                <h2 className="text-xl font-bold text-slate-900 tracking-tight">Upcoming Interviews</h2>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Review your interview rounds, video conference links, and preparation recommendations.
+                </p>
+              </div>
+              <Link
+                to={ROUTES.CANDIDATE_INTERVIEWS}
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold text-purple-700 bg-purple-50 hover:bg-purple-100 border border-purple-200 rounded-xl transition shadow-2xs self-start sm:self-auto"
+              >
+                <Calendar className="w-4 h-4" />
+                <span>Calendar & List Layout View →</span>
+              </Link>
             </div>
 
             {/* Upcoming Interview Card */}
