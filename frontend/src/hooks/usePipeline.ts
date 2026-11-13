@@ -166,16 +166,24 @@ export const usePipeline = () => {
   const [applications, setApplications] = useState<PipelineApplication[]>(INITIAL_DEMO_PIPELINE);
   const [loading, setLoading] = useState<boolean>(false);
   const [updatingAppId, setUpdatingAppId] = useState<string | null>(null);
+  const [isDownloadingResume, setIsDownloadingResume] = useState<boolean>(false);
+  const [selectedDossierApp, setSelectedDossierApp] = useState<PipelineApplication | null>(null);
+  const [isDossierOpen, setIsDossierOpen] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
 
   /**
    * Fetches applications for the hiring pipeline
    */
-  const fetchPipeline = useCallback(async () => {
+  const fetchPipeline = useCallback(async (filters?: { jobId?: string; stage?: string; search?: string }) => {
     setLoading(true);
     setError(null);
     try {
-      const res = await apiClient.get('/applications');
+      const params: Record<string, string> = {};
+      if (filters?.jobId && filters.jobId !== 'ALL') params.jobId = filters.jobId;
+      if (filters?.stage && filters.stage !== 'ALL') params.stage = filters.stage;
+      if (filters?.search && filters.search.trim()) params.search = filters.search.trim();
+
+      const res = await apiClient.get('/applications', { params });
       if (res.data?.success && Array.isArray(res.data?.data) && res.data.data.length > 0) {
         setApplications(res.data.data);
       }
@@ -189,6 +197,73 @@ export const usePipeline = () => {
   useEffect(() => {
     fetchPipeline();
   }, [fetchPipeline]);
+
+  /**
+   * Opens candidate dossier drawer and fetches chronological audit timeline
+   */
+  const openDossier = useCallback(async (application: PipelineApplication) => {
+    setSelectedDossierApp(application);
+    setIsDossierOpen(true);
+
+    try {
+      const res = await apiClient.get(`/applications/${application.id}/history`);
+      if (res.data?.success && Array.isArray(res.data?.timeline)) {
+        const enrichedTimeline = res.data.timeline.map((item: any) => ({
+          id: item.id,
+          fromStage: item.fromStage,
+          toStage: item.toStage,
+          reason: item.reason,
+          changedAt: item.changedAt,
+          changedBy: item.changedBy?.name || 'Recruiter Staff',
+        }));
+
+        setSelectedDossierApp((prev) => (prev ? { ...prev, stageHistory: enrichedTimeline } : null));
+        setApplications((prev) =>
+          prev.map((app) => (app.id === application.id ? { ...app, stageHistory: enrichedTimeline } : app))
+        );
+      }
+    } catch {
+      // Retain existing local stageHistory on demo or error
+    }
+  }, []);
+
+  const closeDossier = useCallback(() => {
+    setIsDossierOpen(false);
+    setSelectedDossierApp(null);
+  }, []);
+
+  /**
+   * Streams ownership-protected resume download
+   */
+  const downloadResume = useCallback(
+    async (resumeId: string, preferredFileName?: string) => {
+      setIsDownloadingResume(true);
+      try {
+        const response = await apiClient.get(`/resumes/${resumeId}/download`, {
+          responseType: 'blob',
+        });
+
+        const blob = new Blob([response.data], {
+          type: String(response.headers['content-type'] || 'application/pdf'),
+        });
+        const url = window.URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = preferredFileName || 'Candidate_Resume.pdf';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        window.URL.revokeObjectURL(url);
+
+        toast.success(`Downloaded ${preferredFileName || 'resume'}`);
+      } catch (err: any) {
+        toast.error(err.response?.data?.error?.message || 'Failed to download resume');
+      } finally {
+        setIsDownloadingResume(false);
+      }
+    },
+    [toast]
+  );
 
   /**
    * Optimistically updates candidate stage and records mandatory audit reason with backend
@@ -293,8 +368,14 @@ export const usePipeline = () => {
     applications,
     loading,
     updatingAppId,
+    isDownloadingResume,
+    selectedDossierApp,
+    isDossierOpen,
     error,
     fetchPipeline,
+    openDossier,
+    closeDossier,
+    downloadResume,
     transitionStage,
   };
 };
