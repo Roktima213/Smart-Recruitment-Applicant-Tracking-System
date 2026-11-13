@@ -6,6 +6,8 @@ import {
   getMyApplications,
   getApplicationById,
   updateApplicationStage,
+  listApplications,
+  getApplicationHistory,
   submitApplicationSchema,
   updateApplicationStageSchema,
 } from '../controllers/applicationController';
@@ -15,6 +17,16 @@ const router = Router();
 
 // Protect all /api/applications endpoints with Firebase authentication
 router.use(authenticateFirebase);
+
+/**
+ * GET /api/applications
+ * HR / Admin multi-filter candidate search, stage filtering, and pagination
+ */
+router.get(
+  '/',
+  requireRole(['ADMIN', 'HR']),
+  listApplications
+);
 
 /**
  * POST /api/applications
@@ -35,6 +47,15 @@ router.get(
   '/me',
   requireCandidateRole,
   getMyApplications
+);
+
+/**
+ * GET /api/applications/:id/history
+ * Chronological stage audit timeline retrieval with actor metadata
+ */
+router.get(
+  '/:id/history',
+  getApplicationHistory
 );
 
 /**

@@ -2,7 +2,7 @@ import { Request, Response } from 'express';
 import { z } from 'zod';
 import { query, getClient } from '../config/database';
 import { getOrCreateCandidateProfile } from './candidateController';
-import { validateStageTransition } from '../services/stageMachine';
+import { validateStageTransition, ALL_APPLICATION_STAGES, ApplicationStage } from '../services/stageMachine';
 import { executeStageTransitionWithLock } from '../services/stageTransitionDbService';
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -586,6 +586,389 @@ export async function updateApplicationStage(req: Request, res: Response): Promi
     });
   }
 }
+
+/**
+ * 5. GET /api/applications
+ * Retrieves a paginated list of candidate applications with multi-filter parameters:
+ * - jobId (or job_id)
+ * - stage (single or comma-separated: APPLIED, SCREENING, etc.)
+ * - search (fuzzy search on candidate name, email, skills array, headline)
+ * - startDate / endDate (filters by applied_at timestamp)
+ * - page & limit (clamped pagination)
+ * Scoped to HR caller's company_id for multi-tenant isolation.
+ */
+export async function listApplications(req: Request, res: Response): Promise<void> {
+  try {
+    const firebaseUid = req.user?.uid;
+    const userRole = req.user?.role;
+    if (!firebaseUid) {
+      res.status(401).json({
+        error: 'Unauthorized',
+        message: 'Authentication required prior to fetching applications',
+      });
+      return;
+    }
+
+    if (userRole !== 'ADMIN' && userRole !== 'HR') {
+      res.status(403).json({
+        success: false,
+        error: {
+          message: 'Forbidden: Only HR or ADMIN users can list organization applications',
+          statusCode: 403,
+        },
+      });
+      return;
+    }
+
+    // Resolve caller's DB user & company_id
+    const userRes = await query(
+      `SELECT id, company_id, role, is_active FROM users WHERE firebase_uid = $1 LIMIT 1;`,
+      [firebaseUid]
+    );
+
+    if (userRes.rows.length === 0) {
+      res.status(404).json({
+        success: false,
+        error: { message: 'Authenticated user record not found in database', statusCode: 404 },
+      });
+      return;
+    }
+
+    const actor = userRes.rows[0];
+    if (!actor.is_active) {
+      res.status(403).json({
+        success: false,
+        error: { message: 'Your account is deactivated', statusCode: 403 },
+      });
+      return;
+    }
+
+    const {
+      job_id,
+      jobId: rawJobId,
+      stage: rawStage,
+      search: rawSearch,
+      q: rawQ,
+      start_date,
+      startDate: rawStartDate,
+      end_date,
+      endDate: rawEndDate,
+      page: rawPage,
+      limit: rawLimit,
+    } = req.query as Record<string, string | undefined>;
+
+    const jobId = rawJobId || job_id;
+    if (jobId && !UUID_REGEX.test(jobId)) {
+      res.status(400).json({
+        success: false,
+        error: { message: 'Invalid job UUID format', statusCode: 400 },
+      });
+      return;
+    }
+
+    const page = Math.max(1, parseInt(rawPage || '1', 10) || 1);
+    const limit = Math.min(100, Math.max(1, parseInt(rawLimit || '20', 10) || 20));
+    const offset = (page - 1) * limit;
+
+    const conditions: string[] = [];
+    const values: any[] = [];
+    let paramIndex = 1;
+
+    // Multi-tenant check: HR can only query jobs from their company
+    if (actor.role === 'HR' && actor.company_id) {
+      conditions.push(`j.company_id = $${paramIndex++}`);
+      values.push(actor.company_id);
+    }
+
+    // Job filter
+    if (jobId) {
+      conditions.push(`a.job_id = $${paramIndex++}`);
+      values.push(jobId);
+    }
+
+    // Stage filter (support single or comma-separated list)
+    if (rawStage) {
+      const stages = rawStage
+        .split(',')
+        .map((s) => s.trim().toUpperCase())
+        .filter((s) => ALL_APPLICATION_STAGES.includes(s as ApplicationStage));
+      if (stages.length > 0) {
+        conditions.push(`a.current_stage = ANY($${paramIndex++})`);
+        values.push(stages);
+      }
+    }
+
+    // Search query: matches candidate full_name, email, headline, or skills
+    const search = (rawSearch || rawQ || '').trim();
+    if (search) {
+      conditions.push(`(
+        u.full_name ILIKE $${paramIndex} OR
+        u.email ILIKE $${paramIndex} OR
+        cp.headline ILIKE $${paramIndex} OR
+        $${paramIndex + 1} = ANY(cp.skills)
+      )`);
+      values.push(`%${search}%`);
+      values.push(search);
+      paramIndex += 2;
+    }
+
+    // Date range filter
+    const startDate = rawStartDate || start_date;
+    if (startDate) {
+      conditions.push(`a.applied_at >= $${paramIndex++}`);
+      values.push(new Date(startDate).toISOString());
+    }
+
+    const endDate = rawEndDate || end_date;
+    if (endDate) {
+      conditions.push(`a.applied_at <= $${paramIndex++}`);
+      values.push(new Date(endDate).toISOString());
+    }
+
+    const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+
+    // Count total matching applications
+    const countSql = `
+      SELECT COUNT(*)::int AS total
+      FROM applications a
+      JOIN jobs j ON a.job_id = j.id
+      JOIN candidate_profiles cp ON a.candidate_id = cp.id
+      JOIN users u ON cp.user_id = u.id
+      ${whereClause};
+    `;
+    const countRes = await query(countSql, values);
+    const total = countRes.rows[0]?.total || 0;
+
+    // Fetch paginated applications with candidate, job, and resume details
+    const listSql = `
+      SELECT 
+        a.id,
+        a.job_id,
+        a.candidate_id,
+        a.resume_id,
+        a.current_stage,
+        a.cover_letter,
+        a.answers,
+        a.applied_at,
+        a.updated_at,
+        u.id AS user_id,
+        u.full_name AS candidate_name,
+        u.email AS candidate_email,
+        u.avatar_url AS candidate_avatar,
+        cp.headline AS candidate_headline,
+        cp.skills AS candidate_skills,
+        cp.experience_years AS candidate_experience,
+        j.title AS job_title,
+        j.department AS job_department,
+        j.location AS job_location,
+        j.employment_type AS job_employment_type,
+        c.name AS company_name,
+        rm.file_name AS resume_file_name
+      FROM applications a
+      JOIN jobs j ON a.job_id = j.id
+      LEFT JOIN companies c ON j.company_id = c.id
+      JOIN candidate_profiles cp ON a.candidate_id = cp.id
+      JOIN users u ON cp.user_id = u.id
+      LEFT JOIN resume_metadata rm ON a.resume_id = rm.id
+      ${whereClause}
+      ORDER BY a.applied_at DESC
+      LIMIT $${paramIndex++} OFFSET $${paramIndex++};
+    `;
+
+    const listRes = await query(listSql, [...values, limit, offset]);
+
+    const applications = listRes.rows.map((row) => ({
+      id: row.id,
+      jobId: row.job_id,
+      candidateId: row.candidate_id,
+      resumeId: row.resume_id,
+      currentStage: row.current_stage,
+      coverLetter: row.cover_letter,
+      answers: row.answers,
+      appliedAt: row.applied_at,
+      updatedAt: row.updated_at,
+      candidate: {
+        id: row.candidate_id,
+        userId: row.user_id,
+        name: row.candidate_name,
+        email: row.candidate_email,
+        headline: row.candidate_headline || null,
+        skills: Array.isArray(row.candidate_skills) ? row.candidate_skills : [],
+        experienceYears: row.candidate_experience ? parseFloat(row.candidate_experience) : 0,
+        avatarUrl: row.candidate_avatar || null,
+      },
+      job: {
+        id: row.job_id,
+        title: row.job_title,
+        department: row.job_department,
+        location: row.job_location,
+        employmentType: row.job_employment_type,
+        companyName: row.company_name,
+      },
+      resumeFileName: row.resume_file_name || null,
+    }));
+
+    res.status(200).json({
+      success: true,
+      data: applications,
+      applications,
+      pagination: {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit) || 1,
+      },
+    });
+  } catch (error: any) {
+    console.error('[List Applications Error]', error);
+    res.status(500).json({
+      success: false,
+      error: {
+        message: 'Failed to retrieve applications',
+        statusCode: 500,
+        details: process.env.NODE_ENV !== 'production' ? error.message : undefined,
+      },
+    });
+  }
+}
+
+/**
+ * 6. GET /api/applications/:id/history
+ * Retrieves full chronological audit timeline for an application.
+ * Accessible to candidate owner, or HR/ADMIN with matching company access.
+ */
+export async function getApplicationHistory(req: Request, res: Response): Promise<void> {
+  try {
+    const firebaseUid = req.user?.uid;
+    const userRole = req.user?.role;
+    if (!firebaseUid) {
+      res.status(401).json({
+        error: 'Unauthorized',
+        message: 'Authentication required prior to fetching application history',
+      });
+      return;
+    }
+
+    const { id } = req.params;
+    if (!id || !UUID_REGEX.test(id)) {
+      res.status(400).json({
+        success: false,
+        error: { message: 'Invalid application UUID format', statusCode: 400 },
+      });
+      return;
+    }
+
+    // Fetch application details to verify authorization & ownership
+    const appSql = `
+      SELECT 
+        a.id,
+        a.job_id,
+        a.candidate_id,
+        u.firebase_uid AS candidate_firebase_uid,
+        j.company_id AS job_company_id
+      FROM applications a
+      JOIN candidate_profiles cp ON a.candidate_id = cp.id
+      JOIN users u ON cp.user_id = u.id
+      JOIN jobs j ON a.job_id = j.id
+      WHERE a.id = $1
+      LIMIT 1;
+    `;
+    const appRes = await query(appSql, [id]);
+
+    if (appRes.rows.length === 0) {
+      res.status(404).json({
+        success: false,
+        error: { message: 'Application not found', statusCode: 404 },
+      });
+      return;
+    }
+
+    const appRecord = appRes.rows[0];
+    const isOwner = appRecord.candidate_firebase_uid === firebaseUid;
+    const isPrivileged = userRole === 'ADMIN' || userRole === 'HR';
+
+    if (!isOwner && !isPrivileged) {
+      res.status(403).json({
+        success: false,
+        error: {
+          message: 'Forbidden: You do not have permission to view this application audit history',
+          statusCode: 403,
+        },
+      });
+      return;
+    }
+
+    // If caller is HR, verify company matches
+    if (userRole === 'HR') {
+      const hrUserRes = await query(`SELECT company_id FROM users WHERE firebase_uid = $1 LIMIT 1;`, [firebaseUid]);
+      const hrCompanyId = hrUserRes.rows[0]?.company_id;
+      if (hrCompanyId && appRecord.job_company_id && hrCompanyId !== appRecord.job_company_id) {
+        res.status(403).json({
+          success: false,
+          error: {
+            message: 'Forbidden: You cannot inspect applications from another company',
+            statusCode: 403,
+          },
+        });
+        return;
+      }
+    }
+
+    // Fetch chronological timeline joined with users table to get actor's name & role
+    const historySql = `
+      SELECT 
+        h.id,
+        h.application_id,
+        h.from_stage,
+        h.to_stage,
+        h.reason,
+        h.changed_at,
+        h.changed_by AS actor_id,
+        u.full_name AS actor_name,
+        u.role AS actor_role
+      FROM application_stage_history h
+      LEFT JOIN users u ON h.changed_by = u.id
+      WHERE h.application_id = $1
+      ORDER BY h.changed_at ASC;
+    `;
+
+    const historyRes = await query(historySql, [id]);
+
+    const timeline = historyRes.rows.map((row) => ({
+      id: row.id,
+      applicationId: row.application_id,
+      fromStage: row.from_stage,
+      toStage: row.to_stage,
+      reason: row.reason,
+      changedAt: row.changed_at,
+      changedBy: row.actor_id
+        ? {
+            id: row.actor_id,
+            name: row.actor_name || 'System/Staff',
+            role: row.actor_role || 'STAFF',
+          }
+        : null,
+    }));
+
+    res.status(200).json({
+      success: true,
+      data: timeline,
+      timeline,
+      totalEntries: timeline.length,
+    });
+  } catch (error: any) {
+    console.error('[Get Application History Error]', error);
+    res.status(500).json({
+      success: false,
+      error: {
+        message: 'Failed to retrieve application stage audit history',
+        statusCode: 500,
+        details: process.env.NODE_ENV !== 'production' ? error.message : undefined,
+      },
+    });
+  }
+}
+
 
 
 
