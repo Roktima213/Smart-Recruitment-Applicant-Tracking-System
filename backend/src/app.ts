@@ -11,6 +11,7 @@ import authRoutes from './routes/authRoutes';
 import adminRoutes from './routes/adminRoutes';
 import jobRoutes from './routes/jobRoutes';
 import candidateRoutes from './routes/candidateRoutes';
+import resumeRoutes from './routes/resumeRoutes';
 import { errorHandler } from './middleware/errorHandler';
 
 const app: Application = express();
@@ -108,6 +109,9 @@ app.use('/api/jobs', jobRoutes);
 
 // Candidate Profile & Resume Management endpoints
 app.use('/api/candidates', candidateRoutes);
+
+// Private Resume Streaming & Download endpoints
+app.use('/api/resumes', resumeRoutes);
 
 // 404 Not Found Handler
 app.use((req: Request, res: Response) => {

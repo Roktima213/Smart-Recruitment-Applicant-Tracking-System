@@ -10,7 +10,10 @@ export interface StorageConfig {
   allowedMimeTypes: string[];
 }
 
-const resolvedUploadDir = path.resolve(process.env.UPLOAD_DIR || '../uploads');
+const defaultUploadDir = path.resolve(__dirname, '../../../uploads');
+const resolvedUploadDir = process.env.UPLOAD_DIR
+  ? path.resolve(process.env.UPLOAD_DIR)
+  : defaultUploadDir;
 const maxUploadBytes = Number(process.env.MAX_UPLOAD_BYTES) || 5242880; // 5 MB default
 
 export const storageConfig: StorageConfig = {
