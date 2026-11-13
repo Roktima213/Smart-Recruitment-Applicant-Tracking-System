@@ -11,10 +11,7 @@ import authRoutes from './routes/authRoutes';
 import adminRoutes from './routes/adminRoutes';
 import jobRoutes from './routes/jobRoutes';
 import candidateRoutes from './routes/candidateRoutes';
-<<<<<<< HEAD
 import resumeRoutes from './routes/resumeRoutes';
-=======
->>>>>>> origin/backend
 import applicationRoutes from './routes/applicationRoutes';
 import { errorHandler } from './middleware/errorHandler';
 
