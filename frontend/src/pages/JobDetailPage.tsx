@@ -16,6 +16,7 @@ import { ROUTES } from '../constants/routes';
 import { useToast } from '../context/ToastContext';
 import { useAuth } from '../context/AuthContext';
 import { JobRecord } from '../hooks/useJobs';
+import { JobApplicationModal } from '../components/candidate';
 
 export const JobDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -27,6 +28,25 @@ export const JobDetailPage: React.FC = () => {
   const [job, setJob] = useState<JobRecord | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
+  const [isApplyModalOpen, setIsApplyModalOpen] = useState<boolean>(false);
+  const [isApplied, setIsApplied] = useState<boolean>(false);
+
+  // Check if candidate has already submitted an application for this job
+  useEffect(() => {
+    if (!id || !isAuthenticated) return;
+    apiClient
+      .get('/applications/me')
+      .then((res) => {
+        const apps = res.data?.applications || [];
+        const hasApplied = apps.some((app: any) => app.jobId === id);
+        if (hasApplied) {
+          setIsApplied(true);
+        }
+      })
+      .catch(() => {
+        // Unauthenticated or not candidate, ignore
+      });
+  }, [id, isAuthenticated]);
 
   useEffect(() => {
     let isMounted = true;
@@ -65,8 +85,10 @@ export const JobDetailPage: React.FC = () => {
     if (!isAuthenticated) {
       toast.info('Please sign in or create an account to submit your application.', 'Candidate Portal');
       navigate(ROUTES.LOGIN);
+    } else if (isApplied) {
+      toast.info('You have already submitted an application for this requisition.', 'Application Submitted');
     } else {
-      toast.success('Ready to apply! Direct application submission activates in Floor 11.', 'Application Flow');
+      setIsApplyModalOpen(true);
     }
   };
 
@@ -167,9 +189,21 @@ export const JobDetailPage: React.FC = () => {
             </button>
             <button
               onClick={handleApply}
-              className="px-6 py-2.5 bg-brand-600 hover:bg-brand-700 text-white font-semibold text-sm rounded-lg shadow-sm hover:shadow transition"
+              disabled={isApplied}
+              className={`px-6 py-2.5 font-semibold text-sm rounded-lg shadow-sm transition flex items-center gap-1.5 ${
+                isApplied
+                  ? 'bg-emerald-50 text-emerald-700 border border-emerald-300 cursor-default'
+                  : 'bg-brand-600 hover:bg-brand-700 text-white hover:shadow'
+              }`}
             >
-              Apply Now
+              {isApplied ? (
+                <>
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                  Application Submitted
+                </>
+              ) : (
+                'Apply Now'
+              )}
             </button>
           </div>
         </div>
@@ -272,13 +306,35 @@ export const JobDetailPage: React.FC = () => {
 
             <button
               onClick={handleApply}
-              className="w-full py-3 bg-brand-600 hover:bg-brand-700 text-white font-semibold text-sm rounded-xl shadow-sm hover:shadow transition"
+              disabled={isApplied}
+              className={`w-full py-3 font-semibold text-sm rounded-xl shadow-sm transition flex items-center justify-center gap-1.5 ${
+                isApplied
+                  ? 'bg-emerald-50 text-emerald-700 border border-emerald-300 cursor-default'
+                  : 'bg-brand-600 hover:bg-brand-700 text-white hover:shadow'
+              }`}
             >
-              Apply for this Position
+              {isApplied ? (
+                <>
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                  Application Submitted
+                </>
+              ) : (
+                'Apply for this Position'
+              )}
             </button>
           </div>
         </div>
       </div>
+
+      {/* Application Submission Modal */}
+      {job && (
+        <JobApplicationModal
+          isOpen={isApplyModalOpen}
+          onClose={() => setIsApplyModalOpen(false)}
+          job={job}
+          onSuccess={() => setIsApplied(true)}
+        />
+      )}
     </div>
   );
 };
