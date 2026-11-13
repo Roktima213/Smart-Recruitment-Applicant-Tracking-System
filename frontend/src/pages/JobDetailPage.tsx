@@ -9,7 +9,9 @@ import {
   Calendar, 
   CheckCircle2, 
   Share2, 
-  AlertCircle 
+  AlertCircle,
+  Check,
+  ArrowUpRight
 } from 'lucide-react';
 import { apiClient } from '../services/apiClient';
 import { ROUTES } from '../constants/routes';
@@ -17,6 +19,8 @@ import { useToast } from '../context/ToastContext';
 import { useAuth } from '../context/AuthContext';
 import { JobRecord } from '../hooks/useJobs';
 import { JobApplicationModal } from '../components/candidate';
+
+const STORAGE_APPLICATIONS_KEY = 'smart_ats_candidate_applications';
 
 export const JobDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -28,25 +32,10 @@ export const JobDetailPage: React.FC = () => {
   const [job, setJob] = useState<JobRecord | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
-  const [isApplyModalOpen, setIsApplyModalOpen] = useState<boolean>(false);
-  const [isApplied, setIsApplied] = useState<boolean>(false);
 
-  // Check if candidate has already submitted an application for this job
-  useEffect(() => {
-    if (!id || !isAuthenticated) return;
-    apiClient
-      .get('/applications/me')
-      .then((res) => {
-        const apps = res.data?.applications || [];
-        const hasApplied = apps.some((app: any) => app.jobId === id);
-        if (hasApplied) {
-          setIsApplied(true);
-        }
-      })
-      .catch(() => {
-        // Unauthenticated or not candidate, ignore
-      });
-  }, [id, isAuthenticated]);
+  // Application Modal state
+  const [isApplyModalOpen, setIsApplyModalOpen] = useState<boolean>(false);
+  const [hasApplied, setHasApplied] = useState<boolean>(false);
 
   useEffect(() => {
     let isMounted = true;
@@ -69,6 +58,21 @@ export const JobDetailPage: React.FC = () => {
     };
 
     fetchJobDetail();
+
+    // Check if user has already applied for this job
+    try {
+      const stored = localStorage.getItem(STORAGE_APPLICATIONS_KEY);
+      if (stored && id) {
+        const list = JSON.parse(stored);
+        const already = list.some((item: any) => item.jobId === id);
+        if (already && isMounted) {
+          setHasApplied(true);
+        }
+      }
+    } catch {
+      // ignore parse errors
+    }
+
     return () => {
       isMounted = false;
     };
@@ -85,8 +89,9 @@ export const JobDetailPage: React.FC = () => {
     if (!isAuthenticated) {
       toast.info('Please sign in or create an account to submit your application.', 'Candidate Portal');
       navigate(ROUTES.LOGIN);
-    } else if (isApplied) {
-      toast.info('You have already submitted an application for this requisition.', 'Application Submitted');
+    } else if (hasApplied) {
+      toast.info('You have already submitted an application for this position.', 'Already Applied');
+      navigate(ROUTES.CANDIDATE);
     } else {
       setIsApplyModalOpen(true);
     }
@@ -187,24 +192,23 @@ export const JobDetailPage: React.FC = () => {
             >
               <Share2 className="w-4 h-4" />
             </button>
-            <button
-              onClick={handleApply}
-              disabled={isApplied}
-              className={`px-6 py-2.5 font-semibold text-sm rounded-lg shadow-sm transition flex items-center gap-1.5 ${
-                isApplied
-                  ? 'bg-emerald-50 text-emerald-700 border border-emerald-300 cursor-default'
-                  : 'bg-brand-600 hover:bg-brand-700 text-white hover:shadow'
-              }`}
-            >
-              {isApplied ? (
-                <>
-                  <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                  Application Submitted
-                </>
-              ) : (
-                'Apply Now'
-              )}
-            </button>
+            
+            {hasApplied ? (
+              <button
+                onClick={() => navigate(ROUTES.CANDIDATE)}
+                className="px-5 py-2.5 bg-emerald-50 text-emerald-700 border border-emerald-300 hover:bg-emerald-100 font-semibold text-sm rounded-lg shadow-2xs transition inline-flex items-center gap-2"
+              >
+                <Check className="w-4 h-4 stroke-[2.5]" />
+                Applied • View Status
+              </button>
+            ) : (
+              <button
+                onClick={handleApply}
+                className="px-6 py-2.5 bg-brand-600 hover:bg-brand-700 text-white font-semibold text-sm rounded-lg shadow-sm hover:shadow transition"
+              >
+                Apply Now
+              </button>
+            )}
           </div>
         </div>
 
@@ -304,35 +308,55 @@ export const JobDetailPage: React.FC = () => {
               </div>
             </div>
 
-            <button
-              onClick={handleApply}
-              disabled={isApplied}
-              className={`w-full py-3 font-semibold text-sm rounded-xl shadow-sm transition flex items-center justify-center gap-1.5 ${
-                isApplied
-                  ? 'bg-emerald-50 text-emerald-700 border border-emerald-300 cursor-default'
-                  : 'bg-brand-600 hover:bg-brand-700 text-white hover:shadow'
-              }`}
-            >
-              {isApplied ? (
-                <>
-                  <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                  Application Submitted
-                </>
-              ) : (
-                'Apply for this Position'
-              )}
-            </button>
+            {hasApplied ? (
+              <div className="space-y-2">
+                <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-center space-y-1">
+                  <span className="inline-flex items-center gap-1 text-xs font-bold text-emerald-800">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                    Application Submitted
+                  </span>
+                  <p className="text-2xs text-emerald-700">
+                    Your profile and resume are being reviewed.
+                  </p>
+                </div>
+                <button
+                  onClick={() => navigate(ROUTES.CANDIDATE)}
+                  className="w-full py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-semibold text-xs rounded-xl shadow-xs transition flex items-center justify-center gap-1.5"
+                >
+                  View in Candidate Dashboard
+                  <ArrowUpRight className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={handleApply}
+                className="w-full py-3 bg-brand-600 hover:bg-brand-700 text-white font-semibold text-sm rounded-xl shadow-sm hover:shadow transition"
+              >
+                Apply for this Position
+              </button>
+            )}
           </div>
         </div>
       </div>
 
-      {/* Application Submission Modal */}
+      {/* Job Application Modal Popup */}
       {job && (
         <JobApplicationModal
           isOpen={isApplyModalOpen}
           onClose={() => setIsApplyModalOpen(false)}
-          job={job}
-          onSuccess={() => setIsApplied(true)}
+          job={{
+            id: job.id,
+            title: job.title,
+            company_name: job.company_name,
+            location: job.location,
+            department: job.department,
+            employment_type: job.employment_type,
+            salary_min: job.salary_min,
+            salary_max: job.salary_max,
+          }}
+          onApplicationSubmitted={() => {
+            setHasApplied(true);
+          }}
         />
       )}
     </div>

@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useRef } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import {
   FileText,
   Clock,
@@ -14,37 +14,28 @@ import {
   Filter,
   Check,
   Video,
-  Download,
+  Search,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import { useApplications } from '../hooks/useApplications';
 import { Button } from '../components/ui/Button';
 import { Badge } from '../components/ui/Badge';
 import { Modal } from '../components/ui/Modal';
 import { apiClient } from '../services/apiClient';
-import { ProfileEditor, CandidateProfileData } from '../components/candidate';
-import { ResumeDropzone } from '../components/candidate';
-import { DocumentPreviewCard, ResumeDocument } from '../components/candidate';
+import {
+  ProfileEditor,
+  CandidateProfileData,
+  ResumeDropzone,
+  DocumentPreviewCard,
+  ResumeDocument,
+  ApplicationStatusCard,
+  ApplicationRecord,
+  JobApplicationModal,
+} from '../components/candidate';
 
 // Application Stage Type
 export type ApplicationStage = 'APPLIED' | 'SCREENING' | 'INTERVIEW' | 'SELECTED' | 'OFFERED' | 'REJECTED';
 
-export interface CandidateApplication {
-  id: string;
-  jobId: string;
-  jobTitle: string;
-  company: string;
-  companyLogo?: string;
-  location: string;
-  stage: ApplicationStage;
-  submittedOn: string;
-  nextAction: string;
-  interviewDate?: string;
-  interviewType?: string;
-  interviewer?: string;
-  salaryRange?: string;
-  department?: string;
-}
+export type CandidateApplication = ApplicationRecord;
 
 interface ToastNotification {
   id: number;
@@ -219,11 +210,11 @@ export const CandidateDashboardPage: React.FC = () => {
   };
 
   // ---------------------------------------------------------------------------
-  // 4. Candidate Applications State (Live Backend + Fallback Demo Data)
+  // 4. Candidate Applications State & Pipeline Tracker
   // ---------------------------------------------------------------------------
-  const { applications: liveApplications, downloadResume, downloadingId } = useApplications();
+  const STORAGE_APPLICATIONS_KEY = 'smart_ats_candidate_applications';
 
-  const defaultDemoApplications: CandidateApplication[] = useMemo(() => [
+  const [applications, setApplications] = useState<ApplicationRecord[]>([
     {
       id: 'app-1',
       jobId: 'job-101',
@@ -238,6 +229,11 @@ export const CandidateDashboardPage: React.FC = () => {
       interviewer: 'Marcus Vance (VP of Engineering)',
       salaryRange: '$165,000 - $190,000',
       department: 'Core Platform Engineering',
+      resumeFileName: 'Rekha_Sharma_Senior_FullStack_Resume_2026.pdf',
+      resumeFileSize: 2457600,
+      atsScore: 96,
+      coverNotes:
+        'With over 5 years of engineering experience across React, TypeScript, and distributed Node.js microservices, I have spearheaded scalable architectural migrations that improved frontend response times by 40%.',
     },
     {
       id: 'app-2',
@@ -250,6 +246,11 @@ export const CandidateDashboardPage: React.FC = () => {
       nextAction: 'Resume under review by engineering lead & talent partner',
       salaryRange: '$150,000 - $175,000',
       department: 'Infrastructure & SRE',
+      resumeFileName: 'Rekha_Sharma_Senior_FullStack_Resume_2026.pdf',
+      resumeFileSize: 2457600,
+      atsScore: 94,
+      coverNotes:
+        'Experienced in configuring automated container deployments, Kubernetes orchestration, and multi-region failover strategies.',
     },
     {
       id: 'app-3',
@@ -262,47 +263,86 @@ export const CandidateDashboardPage: React.FC = () => {
       nextAction: 'Application submitted successfully. Awaiting HR review.',
       salaryRange: '$180,000 - $210,000',
       department: 'User Experience Systems',
+      resumeFileName: 'Rekha_Sharma_Senior_FullStack_Resume_2026.pdf',
+      resumeFileSize: 2457600,
+      atsScore: 98,
+      coverNotes:
+        'Excited to contribute to design system governance, TypeScript type-safety enforcement, and enterprise micro-frontend initiatives.',
     },
-  ], []);
+  ]);
 
-  const applications = useMemo<CandidateApplication[]>(() => {
-    if (liveApplications.length > 0) {
-      return liveApplications.map((app) => ({
-        id: app.id,
-        jobId: app.jobId,
-        jobTitle: app.jobTitle,
-        company: app.companyName || 'Hiring Organization',
-        location: app.location || 'Remote',
-        stage: (app.currentStage as ApplicationStage) || 'APPLIED',
-        submittedOn: new Date(app.appliedAt).toLocaleDateString('en-US', {
-          month: 'short',
-          day: '2-digit',
-          year: 'numeric',
-        }),
-        nextAction:
-          app.currentStage === 'APPLIED'
-            ? 'Application submitted successfully. Awaiting HR review.'
-            : app.currentStage === 'SCREENING'
-            ? 'Resume in active screening.'
-            : app.currentStage === 'INTERVIEW'
-            ? 'Candidate interview in progress.'
-            : app.currentStage === 'OFFERED'
-            ? 'Formal employment offer extended.'
-            : 'Application review completed.',
-        department: app.department || 'Engineering',
-      }));
-    }
-    return defaultDemoApplications;
-  }, [liveApplications, defaultDemoApplications]);
-
-  const [selectedApplication, setSelectedApplication] = useState<CandidateApplication | null>(null);
+  const [selectedApplication, setSelectedApplication] = useState<ApplicationRecord | null>(null);
   const [appFilter, setAppFilter] = useState<string>('ALL');
+  const [searchQuery, setSearchQuery] = useState<string>('');
 
-  // Filtered applications
+  // Recommended Job Modal state
+  const [selectedRecommendedJob, setSelectedRecommendedJob] = useState<any | null>(null);
+  const [isJobModalOpen, setIsJobModalOpen] = useState(false);
+
+  // Sync stored submitted applications from localStorage or backend
+  useEffect(() => {
+    try {
+      const storedRaw = localStorage.getItem(STORAGE_APPLICATIONS_KEY);
+      if (storedRaw) {
+        const storedList = JSON.parse(storedRaw);
+        if (Array.isArray(storedList) && storedList.length > 0) {
+          setApplications((prev) => {
+            const existingIds = new Set(prev.map((p) => p.id));
+            const newItems = storedList.filter((s: ApplicationRecord) => !existingIds.has(s.id));
+            return [...newItems, ...prev];
+          });
+        }
+      }
+    } catch {
+      // ignore parse errors
+    }
+
+    // Attempt to load from GET /api/applications/me
+    apiClient
+      .get('/applications/me')
+      .then((res) => {
+        if (res.data?.applications && Array.isArray(res.data.applications)) {
+          setApplications((prev) => {
+            const apiIds = new Set(res.data.applications.map((a: any) => a.id));
+            const localOnly = prev.filter((p) => !apiIds.has(p.id));
+            return [...res.data.applications, ...localOnly];
+          });
+        }
+      })
+      .catch(() => {
+        // graceful offline fallback
+      });
+  }, []);
+
+  // Handle Application Withdrawal
+  const handleWithdrawApplication = (appId: string) => {
+    setApplications((prev) => {
+      const updated = prev.filter((app) => app.id !== appId);
+      try {
+        localStorage.setItem(STORAGE_APPLICATIONS_KEY, JSON.stringify(updated));
+      } catch {
+        // ignore
+      }
+      return updated;
+    });
+    addToast('Application has been successfully withdrawn and removed.', 'info');
+  };
+
+  // Filtered applications by stage & search query
   const filteredApplications = useMemo(() => {
-    if (appFilter === 'ALL') return applications;
-    return applications.filter((app) => app.stage === appFilter);
-  }, [applications, appFilter]);
+    return applications.filter((app) => {
+      const matchesStage = appFilter === 'ALL' || app.stage === appFilter;
+      const query = searchQuery.toLowerCase().trim();
+      const matchesSearch =
+        !query ||
+        app.jobTitle.toLowerCase().includes(query) ||
+        app.company.toLowerCase().includes(query) ||
+        (app.department && app.department.toLowerCase().includes(query)) ||
+        (app.location && app.location.toLowerCase().includes(query));
+
+      return matchesStage && matchesSearch;
+    });
+  }, [applications, appFilter, searchQuery]);
 
   // ---------------------------------------------------------------------------
   // 5. Dynamic Profile Completeness Calculation
@@ -744,104 +784,108 @@ export const CandidateDashboardPage: React.FC = () => {
       )}
 
       {/* --------------------------------------------------------------------- */}
-      {/* TAB 2: Applications Tracker */}
+      {/* TAB 2: Applications Tracker & Status Cards (Floor 11 Deliverable) */}
       {/* --------------------------------------------------------------------- */}
       {activeTab === 'applications' && (
         <div className="space-y-6 animate-fadeIn">
-          {/* Controls Bar */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-4 rounded-xl border border-slate-200 shadow-xs">
-            <div className="flex items-center gap-2">
-              <Filter className="w-4 h-4 text-slate-400" />
-              <span className="text-xs font-bold text-slate-700">Filter by Stage:</span>
-              <select
-                value={appFilter}
-                onChange={(e) => setAppFilter(e.target.value)}
-                className="text-xs font-semibold rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-slate-700 focus:outline-none focus:ring-2 focus:ring-brand-500"
-              >
-                <option value="ALL">All Applications ({applications.length})</option>
-                <option value="APPLIED">Applied</option>
-                <option value="SCREENING">Screening</option>
-                <option value="INTERVIEW">Interview Scheduled</option>
-                <option value="OFFERED">Offers</option>
-              </select>
+          {/* Controls Bar: Search & Stage Filtering */}
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-4 sm:p-5 rounded-2xl border border-slate-200/90 shadow-2xs">
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 flex-1">
+              {/* Search Applications Input */}
+              <div className="relative flex-1 max-w-md">
+                <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                <input
+                  type="text"
+                  placeholder="Search by job title, company, or department..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full pl-9 pr-3.5 py-2 text-xs rounded-xl border border-slate-200 bg-slate-50/70 focus:outline-none focus:ring-2 focus:ring-brand-500 text-slate-800 placeholder:text-slate-400"
+                />
+                {searchQuery && (
+                  <button
+                    onClick={() => setSearchQuery('')}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-xs p-1"
+                  >
+                    ✕
+                  </button>
+                )}
+              </div>
+
+              {/* Stage Filter Selector */}
+              <div className="flex items-center gap-2">
+                <Filter className="w-4 h-4 text-slate-400 shrink-0" />
+                <select
+                  value={appFilter}
+                  onChange={(e) => setAppFilter(e.target.value)}
+                  className="text-xs font-semibold rounded-xl border border-slate-200 bg-slate-50/70 px-3 py-2 text-slate-700 focus:outline-none focus:ring-2 focus:ring-brand-500 cursor-pointer"
+                >
+                  <option value="ALL">All Stages ({applications.length})</option>
+                  <option value="APPLIED">Applied</option>
+                  <option value="SCREENING">Screening</option>
+                  <option value="INTERVIEW">Interview</option>
+                  <option value="OFFERED">Offered / Selected</option>
+                  <option value="REJECTED">Declined / Closed</option>
+                </select>
+              </div>
             </div>
 
-            <span className="text-xs text-slate-500">
-              Showing {filteredApplications.length} of {applications.length} applications
-            </span>
+            <div className="flex items-center justify-between sm:justify-end gap-3 text-xs text-slate-500">
+              <span className="font-medium">
+                Showing <strong className="text-slate-800">{filteredApplications.length}</strong> of{' '}
+                <strong className="text-slate-800">{applications.length}</strong> active applications
+              </span>
+            </div>
           </div>
 
-          {/* Application Cards List */}
-          <div className="bg-white rounded-2xl border border-slate-200/90 shadow-xs divide-y divide-slate-100 overflow-hidden">
-            {filteredApplications.length === 0 ? (
-              <div className="p-12 text-center space-y-3">
-                <FileText className="w-10 h-10 text-slate-300 mx-auto" />
-                <p className="text-sm font-semibold text-slate-700">No applications in this stage</p>
-                <p className="text-xs text-slate-400">
-                  Switch the filter to "All" or browse open jobs to apply.
+          {/* Application Status Cards List */}
+          {filteredApplications.length === 0 ? (
+            <div className="bg-white rounded-2xl border border-slate-200/90 shadow-2xs p-12 text-center space-y-4">
+              <div className="w-14 h-14 rounded-2xl bg-slate-100 text-slate-400 flex items-center justify-center mx-auto">
+                <FileText className="w-7 h-7" />
+              </div>
+              <div className="space-y-1">
+                <h3 className="text-base font-bold text-slate-800">No applications found</h3>
+                <p className="text-xs text-slate-500 max-w-sm mx-auto">
+                  {searchQuery || appFilter !== 'ALL'
+                    ? 'No applications match your active search and filter criteria. Try clearing filters.'
+                    : 'You have not submitted any applications yet. Explore published career openings to apply.'}
                 </p>
               </div>
-            ) : (
-              filteredApplications.map((app) => (
-                <div
-                  key={app.id}
-                  className="p-6 hover:bg-slate-50/70 transition flex flex-col md:flex-row md:items-center justify-between gap-6"
+              <div className="pt-2 flex items-center justify-center gap-3">
+                {(searchQuery || appFilter !== 'ALL') && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setSearchQuery('');
+                      setAppFilter('ALL');
+                    }}
+                  >
+                    Clear Filters
+                  </Button>
+                )}
+                <Button
+                  variant="primary"
+                  size="sm"
+                  onClick={() => (window.location.href = '/jobs')}
+                  rightIcon={<ArrowUpRight className="w-3.5 h-3.5" />}
                 >
-                  <div className="space-y-2 flex-1">
-                    <div className="flex flex-wrap items-center gap-2.5">
-                      <h3 className="font-bold text-slate-900 text-lg">{app.jobTitle}</h3>
-                      <span className="text-xs text-slate-400">•</span>
-                      <span className="font-semibold text-sm text-slate-700 flex items-center gap-1">
-                        <Building2 className="w-4 h-4 text-slate-400" />
-                        {app.company}
-                      </span>
-                    </div>
-
-                    <div className="flex flex-wrap items-center gap-3 text-xs text-slate-500">
-                      <Badge variant={app.stage} size="sm" dot>
-                        {app.stage}
-                      </Badge>
-                      <span>Applied {app.submittedOn}</span>
-                      <span>•</span>
-                      <span>{app.location}</span>
-                      {app.salaryRange && (
-                        <>
-                          <span>•</span>
-                          <span className="font-medium text-slate-700">{app.salaryRange}</span>
-                        </>
-                      )}
-                    </div>
-
-                    {/* Next Action Banner */}
-                    <div className="p-3 rounded-xl bg-slate-50 border border-slate-200/70 flex items-start gap-2.5 text-xs text-slate-700 mt-2">
-                      <AlertCircle className="w-4 h-4 text-brand-600 shrink-0 mt-0.5" />
-                      <div>
-                        <span className="font-bold text-slate-900">Next Step: </span>
-                        <span>{app.nextAction}</span>
-                        {app.interviewDate && (
-                          <p className="text-xs font-semibold text-purple-700 mt-1 flex items-center gap-1">
-                            <Clock className="w-3.5 h-3.5 text-purple-600" />
-                            {app.interviewDate}
-                          </p>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-3 self-start md:self-center shrink-0">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setSelectedApplication(app)}
-                      rightIcon={<ArrowUpRight className="w-3.5 h-3.5" />}
-                    >
-                      Application Details
-                    </Button>
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
+                  Browse Open Jobs
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-5">
+              {filteredApplications.map((app) => (
+                <ApplicationStatusCard
+                  key={app.id}
+                  application={app}
+                  onWithdraw={handleWithdrawApplication}
+                  onViewDetails={(appRecord) => setSelectedApplication(appRecord)}
+                />
+              ))}
+            </div>
+          )}
         </div>
       )}
 
@@ -993,7 +1037,17 @@ export const CandidateDashboardPage: React.FC = () => {
                     variant="primary"
                     size="sm"
                     className="w-full text-xs"
-                    onClick={() => addToast(`Application submitted for ${job.title}!`, 'success')}
+                    onClick={() => {
+                      setSelectedRecommendedJob({
+                        id: job.id,
+                        title: job.title,
+                        company_name: job.company,
+                        location: job.location,
+                        department: 'Engineering',
+                        employment_type: 'Full-time',
+                      });
+                      setIsJobModalOpen(true);
+                    }}
                   >
                     1-Click Apply with Master Resume
                   </Button>
@@ -1065,6 +1119,18 @@ export const CandidateDashboardPage: React.FC = () => {
               </div>
             )}
 
+            {/* Submitted Cover Notes */}
+            {selectedApplication.coverNotes && (
+              <div className="space-y-2">
+                <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">
+                  Submitted Cover Notes
+                </h4>
+                <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 text-xs leading-relaxed italic whitespace-pre-line">
+                  "{selectedApplication.coverNotes}"
+                </div>
+              </div>
+            )}
+
             {/* Submitted Documents & Profile Summary */}
             <div className="space-y-2">
               <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">
@@ -1075,31 +1141,39 @@ export const CandidateDashboardPage: React.FC = () => {
                   <FileText className="w-5 h-5 text-rose-500" />
                   <div>
                     <p className="text-xs font-bold text-slate-800">
-                      {activeResume ? activeResume.fileName : 'Resume_Document.pdf'}
+                      {selectedApplication.resumeFileName || (activeResume ? activeResume.fileName : 'Rekha_Sharma_Resume.pdf')}
                     </p>
-                    <p className="text-2xs text-slate-400">PDF Document • ATS Verified</p>
+                    <p className="text-2xs text-slate-400">
+                      PDF Document • ATS {selectedApplication.atsScore || 96}% Verified
+                    </p>
                   </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  <Badge variant="success" size="sm">
-                    Active in Review
-                  </Badge>
-                  {activeResume?.id && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => downloadResume(activeResume.id, activeResume.fileName)}
-                      isLoading={downloadingId === activeResume.id}
-                      leftIcon={<Download className="w-3.5 h-3.5" />}
-                    >
-                      Download
-                    </Button>
-                  )}
-                </div>
+                <Badge variant="success" size="sm">
+                  Active in Review
+                </Badge>
               </div>
             </div>
           </div>
         </Modal>
+      )}
+
+      {/* --------------------------------------------------------------------- */}
+      {/* Modal: Job Application Modal (Apply from Recommended Jobs) */}
+      {/* --------------------------------------------------------------------- */}
+      {isJobModalOpen && selectedRecommendedJob && (
+        <JobApplicationModal
+          isOpen={isJobModalOpen}
+          onClose={() => {
+            setIsJobModalOpen(false);
+            setSelectedRecommendedJob(null);
+          }}
+          job={selectedRecommendedJob}
+          activeResume={activeResume}
+          onApplicationSubmitted={(newApp) => {
+            setApplications((prev) => [newApp, ...prev]);
+            setActiveTab('applications');
+          }}
+        />
       )}
     </div>
   );
