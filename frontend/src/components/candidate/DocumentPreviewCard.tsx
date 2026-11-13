@@ -4,7 +4,6 @@ import {
   Download,
   Eye,
   RefreshCw,
-  Trash2,
   Calendar,
   HardDrive,
   ShieldCheck,
@@ -32,7 +31,6 @@ export interface ResumeDocument {
 export interface DocumentPreviewCardProps {
   resume: ResumeDocument;
   onReplaceClick: () => void;
-  onDeleteClick: () => void;
   onDownloadClick?: () => void;
   isReplacing?: boolean;
   className?: string;
@@ -41,13 +39,11 @@ export interface DocumentPreviewCardProps {
 export const DocumentPreviewCard: React.FC<DocumentPreviewCardProps> = ({
   resume,
   onReplaceClick,
-  onDeleteClick,
   onDownloadClick,
   isReplacing = false,
   className = '',
 }) => {
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
-  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
 
   // Format bytes into readable string (KB / MB)
   const formatFileSize = (bytes: number): string => {
@@ -240,15 +236,7 @@ export const DocumentPreviewCard: React.FC<DocumentPreviewCardProps> = ({
               </Button>
             </div>
 
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setIsDeleteModalOpen(true)}
-              leftIcon={<Trash2 className="w-3.5 h-3.5 text-rose-500" />}
-              className="text-rose-600 hover:text-rose-700 hover:bg-rose-50"
-            >
-              Remove
-            </Button>
+
           </div>
         </div>
       </div>
@@ -413,40 +401,6 @@ export const DocumentPreviewCard: React.FC<DocumentPreviewCardProps> = ({
       {/* --------------------------------------------------------------------- */}
       {/* 2. Modal: Delete Resume Confirmation Modal */}
       {/* --------------------------------------------------------------------- */}
-      <Modal
-        isOpen={isDeleteModalOpen}
-        onClose={() => setIsDeleteModalOpen(false)}
-        title="Remove Current Resume?"
-        subtitle="This will detach your active resume from future applications."
-        size="sm"
-        footer={
-          <div className="flex items-center justify-end gap-2 w-full">
-            <Button variant="outline" size="sm" onClick={() => setIsDeleteModalOpen(false)}>
-              Cancel
-            </Button>
-            <Button
-              variant="danger"
-              size="sm"
-              onClick={() => {
-                setIsDeleteModalOpen(false);
-                onDeleteClick();
-              }}
-              leftIcon={<Trash2 className="w-3.5 h-3.5" />}
-            >
-              Confirm Remove
-            </Button>
-          </div>
-        }
-      >
-        <div className="space-y-3 py-1">
-          <p className="text-sm text-slate-600">
-            Are you sure you want to remove <span className="font-semibold text-slate-900">{resume.fileName}</span>?
-          </p>
-          <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-800">
-            Note: You will need to upload a new resume (PDF or DOCX, under 5 MB) to submit new job applications.
-          </div>
-        </div>
-      </Modal>
     </>
   );
 };

@@ -4,7 +4,7 @@ import { z } from 'zod';
 import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
-import { query } from '../config/database';
+import { query, getClient } from '../config/database';
 import { storageConfig, ensureStorageDirectory, getSafeStoragePath } from '../config/storage';
 import { storeResume } from '../services/resumeStorageService';
 
@@ -51,6 +51,8 @@ export function detectFileTypeFromMagicBytes(buffer: Buffer): MagicByteDetection
  * Zod validation schema for updating candidate profile
  */
 const updateProfileSchema = z.object({
+  fullName: z.string().trim().min(1).max(255).optional(),
+  location: z.string().trim().max(255).optional().nullable(),
   summary: z.string().trim().max(5000).optional().nullable(),
   skills: z.array(z.string().trim().min(1).max(100)).max(100).optional(),
   phone: z.string().trim().max(50).optional().nullable(),
@@ -95,7 +97,7 @@ export async function getOrCreateCandidateProfile(firebaseUid: string) {
 
   // 2. Fetch or create candidate_profiles record
   const profileSql = `
-    SELECT id, user_id, headline, summary, skills, experience_years, current_company, linkedin_url, github_url, portfolio_url, created_at, updated_at
+    SELECT id, user_id, headline, summary, skills, experience_years, current_company, location, linkedin_url, github_url, portfolio_url, created_at, updated_at
     FROM candidate_profiles
     WHERE user_id = $1
     LIMIT 1;
@@ -108,7 +110,7 @@ export async function getOrCreateCandidateProfile(firebaseUid: string) {
       INSERT INTO candidate_profiles (user_id)
       VALUES ($1)
       ON CONFLICT (user_id) DO UPDATE SET updated_at = NOW()
-      RETURNING id, user_id, headline, summary, skills, experience_years, current_company, linkedin_url, github_url, portfolio_url, created_at, updated_at;
+      RETURNING id, user_id, headline, summary, skills, experience_years, current_company, location, linkedin_url, github_url, portfolio_url, created_at, updated_at;
     `;
     profileRes = await query(insertProfileSql, [user.id]);
   }
@@ -143,6 +145,7 @@ export interface CandidateProfileRecord {
   portfolio_url?: string | null;
   created_at: Date | string;
   updated_at: Date | string;
+  location?: string | null;
 }
 
 export interface ResumeMetadataRecord {
@@ -175,6 +178,7 @@ function formatProfileResponse(
     skills: profile.skills || [],
     experienceYears: profile.experience_years !== null ? Number(profile.experience_years) : 0,
     currentCompany: profile.current_company || null,
+    location: profile.location || null,
     portfolioLinks: {
       linkedin: profile.linkedin_url || null,
       github: profile.github_url || null,
@@ -284,6 +288,7 @@ export async function updateMyProfile(req: Request, res: Response): Promise<void
 
     // Resolve incoming values with fallback to existing values
     const resolvedSummary = incoming.summary !== undefined ? incoming.summary : profile.summary;
+    const resolvedLocation = incoming.location !== undefined ? incoming.location : profile.location;
     const resolvedSkills = incoming.skills !== undefined ? incoming.skills : profile.skills;
     const resolvedHeadline = incoming.headline !== undefined ? incoming.headline : profile.headline;
     const resolvedCurrentCompany =
@@ -326,46 +331,93 @@ export async function updateMyProfile(req: Request, res: Response): Promise<void
         ? incoming.portfolioLinks.portfolio
         : profile.portfolio_url;
 
-    // Update candidate_profiles table
-    const updateProfileSql = `
-      UPDATE candidate_profiles
-      SET
-        headline = $1,
-        summary = $2,
-        skills = $3,
-        experience_years = $4,
-        current_company = $5,
-        linkedin_url = $6,
-        github_url = $7,
-        portfolio_url = $8,
-        updated_at = NOW()
-      WHERE id = $9
-      RETURNING id, user_id, headline, summary, skills, experience_years, current_company, linkedin_url, github_url, portfolio_url, created_at, updated_at;
-    `;
-    const updatedProfileRes = await query(updateProfileSql, [
-      resolvedHeadline,
-      resolvedSummary,
-      resolvedSkills,
-      resolvedExperience,
-      resolvedCurrentCompany,
-      resolvedLinkedin,
-      resolvedGithub,
-      resolvedPortfolio,
-      profile.id,
-    ]);
-    const updatedProfile = updatedProfileRes.rows[0];
+    // Update candidate profile and user details atomically.
+    const client = await getClient();
+    let inTransaction = false;
 
-    // Update phone on users table if provided
+    let updatedProfile: CandidateProfileRecord;
     let updatedUser = user;
-    if (incoming.phone !== undefined) {
-      const updateUserSql = `
-        UPDATE users
-        SET phone = $1, updated_at = NOW()
-        WHERE id = $2
-        RETURNING id, firebase_uid, email, full_name, role, phone, avatar_url, is_active;
+
+    try {
+      await client.query('BEGIN');
+      inTransaction = true;
+
+      const updateProfileSql = `
+        UPDATE candidate_profiles
+        SET
+          headline = $1,
+          summary = $2,
+          skills = $3,
+          experience_years = $4,
+          current_company = $5,
+          linkedin_url = $6,
+          github_url = $7,
+          portfolio_url = $8,
+          location = $9,
+          updated_at = NOW()
+        WHERE id = $10
+        RETURNING id, user_id, headline, summary, skills, experience_years,
+                  current_company, location, linkedin_url, github_url,
+                  portfolio_url, created_at, updated_at;
       `;
-      const updatedUserRes = await query(updateUserSql, [incoming.phone, user.id]);
-      updatedUser = updatedUserRes.rows[0];
+
+      const updatedProfileRes = await client.query(updateProfileSql, [
+        resolvedHeadline,
+        resolvedSummary,
+        resolvedSkills,
+        resolvedExperience,
+        resolvedCurrentCompany,
+        resolvedLinkedin,
+        resolvedGithub,
+        resolvedPortfolio,
+        resolvedLocation,
+        profile.id,
+      ]);
+
+      updatedProfile = updatedProfileRes.rows[0];
+
+      if (!updatedProfile) {
+        throw new Error('Candidate profile update returned no record.');
+      }
+
+      if (incoming.phone !== undefined || incoming.fullName !== undefined) {
+        const updateUserSql = `
+          UPDATE users
+          SET
+            phone = $1,
+            full_name = $2,
+            updated_at = NOW()
+          WHERE id = $3
+          RETURNING id, firebase_uid, email, full_name, role, phone, avatar_url, is_active;
+        `;
+
+        const updatedUserRes = await client.query(updateUserSql, [
+          incoming.phone !== undefined ? incoming.phone : user.phone,
+          incoming.fullName !== undefined ? incoming.fullName : user.full_name,
+          user.id,
+        ]);
+
+        updatedUser = updatedUserRes.rows[0];
+
+        if (!updatedUser) {
+          throw new Error('User update returned no record.');
+        }
+      }
+
+      await client.query('COMMIT');
+      inTransaction = false;
+    } catch (txError) {
+      if (inTransaction) {
+        try {
+          await client.query('ROLLBACK');
+        } catch (rollbackError) {
+          console.error('[Candidate Profile Rollback Error]', rollbackError);
+        }
+      }
+
+      throw txError;
+    } finally {
+      client.release();
     }
 
     res.status(200).json({

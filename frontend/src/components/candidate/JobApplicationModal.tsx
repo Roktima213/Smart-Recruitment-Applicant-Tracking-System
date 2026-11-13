@@ -20,7 +20,7 @@ import { Input } from '../ui/Input';
 import { ResumeDocument } from './DocumentPreviewCard';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
-import { apiClient } from '../../services/apiClient';
+import { useApplications } from '../../hooks/useApplications';
 
 export interface JobSummaryInfo {
   id: string;
@@ -76,6 +76,7 @@ export const JobApplicationModal: React.FC<JobApplicationModalProps> = ({
 }) => {
   const { user, dbUser } = useAuth();
   const toast = useToast();
+  const { submitting: isSubmitting, applyToJob } = useApplications(isOpen);
 
   // Candidate Contact Details
   const [candidateName, setCandidateName] = useState('');
@@ -96,7 +97,6 @@ export const JobApplicationModal: React.FC<JobApplicationModalProps> = ({
   const [agreedToTerms, setAgreedToTerms] = useState(true);
 
   // Status flags
-  const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isSuccess, setIsSuccess] = useState(false);
   const [submittedDetails, setSubmittedDetails] = useState<SubmittedApplicationPayload | null>(null);
@@ -220,150 +220,132 @@ export const JobApplicationModal: React.FC<JobApplicationModalProps> = ({
   };
 
   // Submit Application Handler
-  const handleSubmitApplication = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setErrorMessage(null);
+// Submit Application Handler
+const handleSubmitApplication = async (e: React.FormEvent) => {
+  e.preventDefault();
+  if (isSubmitting) return;
 
-    // Validation checks
-    if (!candidateName.trim()) {
-      setErrorMessage('Please provide your full legal name.');
-      return;
-    }
-    if (!candidateEmail.trim() || !candidateEmail.includes('@')) {
-      setErrorMessage('Please provide a valid contact email address.');
-      return;
-    }
-    if (!selectedResume) {
-      setErrorMessage('Please attach or upload a resume to submit with your application.');
-      return;
-    }
-    if (!agreedToTerms) {
-      setErrorMessage('Please certify that your application details are accurate before submitting.');
-      return;
+  setErrorMessage(null);
+
+  // Validation checks
+  if (!candidateName.trim()) {
+    setErrorMessage('Please provide your full legal name.');
+    return;
+  }
+  if (!candidateEmail.trim() || !candidateEmail.includes('@')) {
+    setErrorMessage('Please provide a valid contact email address.');
+    return;
+  }
+  if (!selectedResume) {
+    setErrorMessage('Please attach or upload a resume to submit with your application.');
+    return;
+  }
+  if (!agreedToTerms) {
+    setErrorMessage('Please certify that your application details are accurate before submitting.');
+    return;
+  }
+
+  const now = new Date();
+  const formattedDate = now.toLocaleDateString('en-US', {
+    month: 'short',
+    day: '2-digit',
+    year: 'numeric',
+  });
+
+  const newApplicationPayload: SubmittedApplicationPayload = {
+    id: `app-${Date.now()}`,
+    jobId: job.id,
+    jobTitle: job.title,
+    company: job.company_name || 'Hiring Company',
+    location: job.location || 'Remote',
+    department: job.department || 'Engineering',
+    salaryRange: formatSalary(job.salary_min, job.salary_max),
+    stage: 'APPLIED',
+    submittedOn: formattedDate,
+    submittedAtIso: now.toISOString(),
+    nextAction: 'Application submitted successfully. Awaiting talent acquisition screening.',
+    resumeId: selectedResume.id,
+    resumeFileName: selectedResume.fileName,
+    resumeFileSize: selectedResume.fileSize,
+    atsScore: selectedResume.atsScore || 95,
+    coverNotes: coverNotes.trim() || undefined,
+    candidateName: candidateName.trim(),
+    candidateEmail: candidateEmail.trim(),
+    candidatePhone: candidatePhone.trim() || undefined,
+    earliestStartDate,
+  };
+
+  try {
+    // Check for client-side duplicate applications
+    const existingRaw = localStorage.getItem(STORAGE_APPLICATIONS_KEY);
+
+    if (existingRaw) {
+      try {
+        const list: SubmittedApplicationPayload[] = JSON.parse(existingRaw);
+        const alreadyApplied = list.some(
+          (app) =>
+            app.jobId === job.id ||
+            (app.jobTitle === job.title && app.company === job.company_name)
+        );
+
+        if (alreadyApplied) {
+          setErrorMessage(
+            `You have already submitted an application for ${job.title} at ${job.company_name || 'this company'}. You can check its progress in your Candidate Dashboard.`
+          );
+          return;
+        }
+      } catch {
+        // Ignore localStorage parse errors
+      }
     }
 
-    setIsSubmitting(true);
-
-    const now = new Date();
-    const formattedDate = now.toLocaleDateString('en-US', {
-      month: 'short',
-      day: '2-digit',
-      year: 'numeric',
+    // Submit through the useApplications hook
+    const createdRecord = await applyToJob({
+      jobId: job.id,
+      resumeId: selectedResume.id,
+      coverLetter: coverNotes.trim(),
+      answers: {
+        earliestStartDate,
+        remotePreference,
+        candidatePhone,
+        portfolioUrl,
+      },
     });
 
-    const newApplicationPayload: SubmittedApplicationPayload = {
-      id: `app-${Date.now()}`,
-      jobId: job.id,
-      jobTitle: job.title,
-      company: job.company_name || 'Hiring Company',
-      location: job.location || 'Remote',
-      department: job.department || 'Engineering',
-      salaryRange: formatSalary(job.salary_min, job.salary_max),
-      stage: 'APPLIED',
-      submittedOn: formattedDate,
-      submittedAtIso: now.toISOString(),
-      nextAction: 'Application submitted successfully. Awaiting talent acquisition screening.',
-      resumeId: selectedResume.id,
-      resumeFileName: selectedResume.fileName,
-      resumeFileSize: selectedResume.fileSize,
-      atsScore: selectedResume.atsScore || 95,
-      coverNotes: coverNotes.trim() || undefined,
-      candidateName: candidateName.trim(),
-      candidateEmail: candidateEmail.trim(),
-      candidatePhone: candidatePhone.trim() || undefined,
-      earliestStartDate,
-    };
-
-    try {
-      // 1. Check for client-side duplicate application to prevent immediate repeat submissions
-      const existingRaw = localStorage.getItem(STORAGE_APPLICATIONS_KEY);
-      if (existingRaw) {
-        try {
-          const list: SubmittedApplicationPayload[] = JSON.parse(existingRaw);
-          const alreadyApplied = list.some(
-            (app) => app.jobId === job.id || (app.jobTitle === job.title && app.company === job.company_name)
-          );
-          if (alreadyApplied) {
-            setErrorMessage(
-              `You have already submitted an application for ${job.title} at ${job.company_name || 'this company'}. You can check its progress in your Candidate Dashboard.`
-            );
-            setIsSubmitting(false);
-            return;
-          }
-        } catch {
-          // ignore parse errors
-        }
-      }
-
-      // 2. Submit to POST /api/applications endpoint
-      let response;
-      try {
-        response = await apiClient.post('/applications', {
-          jobId: job.id,
-          resumeId: selectedResume.id,
-          coverLetter: coverNotes.trim(),
-          answers: {
-            earliestStartDate,
-            remotePreference,
-            candidatePhone,
-            portfolioUrl,
-          },
-        });
-      } catch (apiErr: any) {
-        const errorMsg =
-          apiErr.response?.data?.error?.message ||
-          apiErr.response?.data?.message ||
-          apiErr.message ||
-          'Failed to submit application. Please try again.';
-        setErrorMessage(errorMsg);
-        toast.error(errorMsg, 'Submission Failed');
-        setIsSubmitting(false);
-        return;
-      }
-
-      // Strictly verify HTTP 201 Created from backend
-      if (response.status !== 201 && response.status !== 200) {
-        const errorMsg = response.data?.error?.message || 'Server rejected application submission.';
-        setErrorMessage(errorMsg);
-        toast.error(errorMsg, 'Submission Failed');
-        setIsSubmitting(false);
-        return;
-      }
-
-      // Synchronize created ID if returned from server
-      const createdRecord = response.data?.application || response.data?.data;
-      if (createdRecord?.id) {
-        newApplicationPayload.id = createdRecord.id;
-      }
-
-      // 3. Persist into Local Storage for instant offline/emulator reactivity across pages
-      try {
-        const storedList: SubmittedApplicationPayload[] = existingRaw ? JSON.parse(existingRaw) : [];
-        storedList.unshift(newApplicationPayload);
-        localStorage.setItem(STORAGE_APPLICATIONS_KEY, JSON.stringify(storedList));
-      } catch (lsErr) {
-        console.warn('[JobApplicationModal] Could not sync to localStorage:', lsErr);
-      }
-
-      // 4. Trigger UI Success State
-      setSubmittedDetails(newApplicationPayload);
-      setIsSuccess(true);
-      toast.success(
-        `Application for "${job.title}" submitted successfully!`,
-        'Application Received'
-      );
-
-      if (onApplicationSubmitted) {
-        onApplicationSubmitted(newApplicationPayload);
-      }
-    } catch (err: any) {
-      const generalMsg = err.message || 'An unexpected error occurred while submitting your application.';
-      setErrorMessage(generalMsg);
-      toast.error(generalMsg, 'Submission Error');
-    } finally {
-      setIsSubmitting(false);
+    // Synchronize the backend-generated application ID
+    if (createdRecord?.id) {
+      newApplicationPayload.id = createdRecord.id;
     }
-  };
+
+    // Persist locally for immediate UI updates
+    try {
+      const storedList: SubmittedApplicationPayload[] = existingRaw
+        ? JSON.parse(existingRaw)
+        : [];
+
+      storedList.unshift(newApplicationPayload);
+      localStorage.setItem(STORAGE_APPLICATIONS_KEY, JSON.stringify(storedList));
+    } catch (lsErr) {
+      console.warn('[JobApplicationModal] Could not sync to localStorage:', lsErr);
+    }
+
+    // Trigger UI success state
+    setSubmittedDetails(newApplicationPayload);
+    setIsSuccess(true);
+
+    if (onApplicationSubmitted) {
+      onApplicationSubmitted(newApplicationPayload);
+    }
+  } catch (err: any) {
+    const errorMsg =
+      err.response?.data?.error?.message ||
+      err.response?.data?.message ||
+      err.message ||
+      'An unexpected error occurred while submitting your application.';
+
+    setErrorMessage(errorMsg);
+  }
+};
 
   // Quick preset cover note inserts
   const insertPromptSnippet = (snippet: string) => {
