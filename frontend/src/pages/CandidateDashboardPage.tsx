@@ -14,8 +14,10 @@ import {
   Filter,
   Check,
   Video,
+  Download,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { useApplications } from '../hooks/useApplications';
 import { Button } from '../components/ui/Button';
 import { Badge } from '../components/ui/Badge';
 import { Modal } from '../components/ui/Modal';
@@ -217,9 +219,11 @@ export const CandidateDashboardPage: React.FC = () => {
   };
 
   // ---------------------------------------------------------------------------
-  // 4. Candidate Applications State
+  // 4. Candidate Applications State (Live Backend + Fallback Demo Data)
   // ---------------------------------------------------------------------------
-  const [applications] = useState<CandidateApplication[]>([
+  const { applications: liveApplications, downloadResume, downloadingId } = useApplications();
+
+  const defaultDemoApplications: CandidateApplication[] = useMemo(() => [
     {
       id: 'app-1',
       jobId: 'job-101',
@@ -259,7 +263,37 @@ export const CandidateDashboardPage: React.FC = () => {
       salaryRange: '$180,000 - $210,000',
       department: 'User Experience Systems',
     },
-  ]);
+  ], []);
+
+  const applications = useMemo<CandidateApplication[]>(() => {
+    if (liveApplications.length > 0) {
+      return liveApplications.map((app) => ({
+        id: app.id,
+        jobId: app.jobId,
+        jobTitle: app.jobTitle,
+        company: app.companyName || 'Hiring Organization',
+        location: app.location || 'Remote',
+        stage: (app.currentStage as ApplicationStage) || 'APPLIED',
+        submittedOn: new Date(app.appliedAt).toLocaleDateString('en-US', {
+          month: 'short',
+          day: '2-digit',
+          year: 'numeric',
+        }),
+        nextAction:
+          app.currentStage === 'APPLIED'
+            ? 'Application submitted successfully. Awaiting HR review.'
+            : app.currentStage === 'SCREENING'
+            ? 'Resume in active screening.'
+            : app.currentStage === 'INTERVIEW'
+            ? 'Candidate interview in progress.'
+            : app.currentStage === 'OFFERED'
+            ? 'Formal employment offer extended.'
+            : 'Application review completed.',
+        department: app.department || 'Engineering',
+      }));
+    }
+    return defaultDemoApplications;
+  }, [liveApplications, defaultDemoApplications]);
 
   const [selectedApplication, setSelectedApplication] = useState<CandidateApplication | null>(null);
   const [appFilter, setAppFilter] = useState<string>('ALL');
@@ -1041,14 +1075,27 @@ export const CandidateDashboardPage: React.FC = () => {
                   <FileText className="w-5 h-5 text-rose-500" />
                   <div>
                     <p className="text-xs font-bold text-slate-800">
-                      {activeResume ? activeResume.fileName : 'Rekha_Sharma_Resume.pdf'}
+                      {activeResume ? activeResume.fileName : 'Resume_Document.pdf'}
                     </p>
                     <p className="text-2xs text-slate-400">PDF Document • ATS Verified</p>
                   </div>
                 </div>
-                <Badge variant="success" size="sm">
-                  Active in Review
-                </Badge>
+                <div className="flex items-center gap-2">
+                  <Badge variant="success" size="sm">
+                    Active in Review
+                  </Badge>
+                  {activeResume?.id && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => downloadResume(activeResume.id, activeResume.fileName)}
+                      isLoading={downloadingId === activeResume.id}
+                      leftIcon={<Download className="w-3.5 h-3.5" />}
+                    >
+                      Download
+                    </Button>
+                  )}
+                </div>
               </div>
             </div>
           </div>
