@@ -227,15 +227,15 @@ Establish Schema / API Contract               Build UI & State using Mock Data (
 ---
 
 #### 🔹 Day 12 (Floor 12): Controlled Pipeline Stage Machine & Audit Trail
-* [ ] **Cloud:** `perf(db): configure row locking and transaction telemetry for stage updates`
+* [x] **Cloud:** `perf(db): configure row locking and transaction telemetry for stage updates`
   * Configure `SELECT ... FOR UPDATE` row-level locking on application stage transitions.
-* [ ] **Backend:** `feat(pipeline-api): build transactional stage state machine and audit log`
+* [x] **Backend:** `feat(pipeline-api): build transactional stage state machine and audit log`
   * Build `stageMachine.ts` and `PATCH /api/applications/:id/stage` recording actor and reason.
-* [ ] **Frontend 1:** `feat(pipeline-ui): build hr pipeline kanban board and stage transition modal`
+* [x] **Frontend 1:** `feat(pipeline-ui): build hr pipeline kanban board and stage transition modal`
   * Build Page 4: HR Pipeline (`/hr/pipeline`) Kanban board with columns (`Applied`, `Screening`, `Interview`, `Selected`, `Offered`, `Rejected`).
-* [ ] **Frontend 2:** `feat(pipeline-ui): wire kanban drag-and-drop state and audit reason handler`
+* [x] **Frontend 2:** `feat(pipeline-ui): wire kanban drag-and-drop state and audit reason handler`
   * Wire Kanban stage change triggers, audit note modal, and optimistic UI update.
-* [ ] **Leader / DevOps:** `test(pipeline): add exhaustive state transition rule unit and api tests`
+* [x] **Leader / DevOps:** `test(pipeline): add exhaustive state transition rule unit and api tests`
   * Write tests proving illegal transitions (e.g. `Applied` → `Offered` or moving out of `Rejected`) fail.
 * **Daily Done Criteria:** Dragging candidate card between allowed stages prompts for reason and records audit entry.
 
