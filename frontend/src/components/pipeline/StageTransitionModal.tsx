@@ -81,7 +81,20 @@ export const StageTransitionModal: React.FC<StageTransitionModalProps> = ({
     }
     setReason('');
     setValidationError(null);
-  }, [isOpen, initialTargetStage, currentStage]);
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && !isSubmitting) {
+        onClose();
+      }
+    };
+
+    if (isOpen) {
+      window.addEventListener('keydown', handleKeyDown);
+    }
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isOpen, initialTargetStage, currentStage, isSubmitting, onClose]);
 
   if (!isOpen) return null;
 
@@ -106,12 +119,17 @@ export const StageTransitionModal: React.FC<StageTransitionModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="transition-modal-title"
+      className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4"
+    >
       <div className="relative w-full max-w-lg bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden animate-in fade-in zoom-in-95 duration-150">
         {/* Header */}
         <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/60">
           <div>
-            <h3 className="text-base font-semibold text-slate-900">
+            <h3 id="transition-modal-title" className="text-base font-semibold text-slate-900">
               Stage Transition Confirmation
             </h3>
             <p className="text-xs text-slate-500">

@@ -35,13 +35,22 @@ export const PipelineCard: React.FC<PipelineCardProps> = ({
 
   return (
     <div
+      role="article"
+      tabIndex={0}
+      aria-label={`Candidate ${application.candidate.name}, applied for ${application.job.title}, stage ${application.currentStage}`}
       draggable={!isTerminal && !isUpdating}
       onDragStart={(e) => {
         if (onDragStart && !isTerminal) {
           onDragStart(e, application);
         }
       }}
-      className={`group relative bg-white rounded-xl p-3.5 border transition shadow-2xs ${
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          onViewDetails?.(application);
+        }
+      }}
+      className={`group relative bg-white rounded-xl p-3.5 border transition shadow-2xs focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:outline-none ${
         isUpdating
           ? 'opacity-60 border-brand-300 pointer-events-none'
           : isTerminal

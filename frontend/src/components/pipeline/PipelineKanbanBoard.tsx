@@ -122,12 +122,37 @@ export const PipelineKanbanBoard: React.FC<PipelineKanbanBoardProps> = ({
             </div>
 
             {/* Candidate Cards List */}
-            <div className="p-2.5 space-y-2.5 flex-1 min-h-[380px] overflow-y-auto max-h-[calc(100vh-280px)]">
+            <div
+              role="region"
+              aria-label={`${column.name} stage candidates`}
+              tabIndex={0}
+              className="p-2.5 space-y-2.5 flex-1 min-h-[380px] overflow-y-auto max-h-[calc(100vh-280px)] focus-visible:ring-1 focus-visible:ring-brand-400 focus-visible:outline-none rounded-b-2xl"
+            >
               {columnApps.length === 0 ? (
-                <div className="h-44 border-2 border-dashed border-slate-200/90 rounded-xl flex flex-col items-center justify-center text-slate-400 p-4 text-center">
-                  <Users className="w-6 h-6 mb-1.5 stroke-[1.5]" />
-                  <p className="text-xs font-medium text-slate-500">No candidates</p>
-                  <p className="text-[11px] text-slate-400">Drag a candidate here</p>
+                <div
+                  role="status"
+                  aria-label={`No candidates in ${column.name} stage`}
+                  className="h-44 border-2 border-dashed border-slate-200/90 rounded-xl flex flex-col items-center justify-center text-slate-400 p-4 text-center select-none"
+                >
+                  <Users className="w-6 h-6 mb-1.5 stroke-[1.5] text-slate-300" />
+                  <p className="text-xs font-semibold text-slate-600">
+                    {column.id === 'APPLIED'
+                      ? 'No new applicants'
+                      : column.id === 'SCREENING'
+                      ? 'No candidates in screening'
+                      : column.id === 'INTERVIEW'
+                      ? 'No scheduled interviews'
+                      : column.id === 'SELECTED'
+                      ? 'No candidates selected'
+                      : column.id === 'OFFERED'
+                      ? 'No offers pending'
+                      : 'No archived rejections'}
+                  </p>
+                  <p className="text-[11px] text-slate-400 mt-0.5">
+                    {column.id === 'REJECTED'
+                      ? 'Closed applications appear here'
+                      : 'Drag or move a candidate here'}
+                  </p>
                 </div>
               ) : (
                 columnApps.map((app) => (
