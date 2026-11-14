@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { ROUTES } from '../../constants/routes';
 import { UserProfileMenu } from './UserProfileMenu';
+import { NotificationBell } from '../notification';
 import {
   Briefcase,
   UserCheck,
@@ -116,7 +117,10 @@ export const Navbar: React.FC<NavbarProps> = ({
           {/* Auth Actions & Role Preview Indicator */}
           <div className="hidden md:flex items-center gap-3">
             {currentUser ? (
-              <UserProfileMenu user={currentUser} onLogout={onLogout} />
+              <div className="flex items-center gap-2">
+                <NotificationBell />
+                <UserProfileMenu user={currentUser} onLogout={onLogout} />
+              </div>
             ) : (
               <>
                 <Link
