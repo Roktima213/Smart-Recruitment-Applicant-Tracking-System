@@ -14,6 +14,7 @@ import candidateRoutes from './routes/candidateRoutes';
 import resumeRoutes from './routes/resumeRoutes';
 import applicationRoutes from './routes/applicationRoutes';
 import interviewRoutes from './routes/interviewRoutes';
+import notificationRoutes from './routes/notificationRoutes';
 import { errorHandler } from './middleware/errorHandler';
 
 const app: Application = express();
@@ -117,10 +118,12 @@ app.use('/api/resumes', resumeRoutes);
 
 // Job Application Submission & Candidate History endpoints
 app.use('/api/applications', applicationRoutes);
-app.use('/api/interviews', interviewRoutes);
 
 // Interview Scheduling & Conflict Check endpoints
 app.use('/api/interviews', interviewRoutes);
+
+// In-App & Email Notification endpoints (Floor 17)
+app.use('/api/notifications', notificationRoutes);
 
 // 404 Not Found Handler
 app.use((req: Request, res: Response) => {
