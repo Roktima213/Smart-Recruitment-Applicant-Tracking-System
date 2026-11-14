@@ -691,3 +691,645 @@ export async function listInterviewers(req: Request, res: Response): Promise<voi
     });
   }
 }
+
+/**
+ * Zod validation schema for updating / rescheduling an interview
+ */
+export const updateInterviewSchema = z
+  .object({
+    status: z.enum(['SCHEDULED', 'RESCHEDULED', 'CANCELLED', 'COMPLETED']).optional(),
+    scheduledStart: z.string().trim().optional(),
+    scheduled_start: z.string().trim().optional(),
+    scheduledEnd: z.string().trim().optional(),
+    scheduled_end: z.string().trim().optional(),
+    interviewerId: z.string().regex(UUID_REGEX, 'Invalid interviewer UUID format').optional(),
+    interviewer_id: z.string().regex(UUID_REGEX, 'Invalid interviewer UUID format').optional(),
+    locationOrLink: z.string().trim().max(2048).optional().nullable(),
+    location_or_link: z.string().trim().max(2048).optional().nullable(),
+    reason: z.string().trim().min(3, 'Reason must be at least 3 characters').max(1000).optional(),
+  })
+  .refine(
+    (data) => {
+      const rawStart = data.scheduledStart || data.scheduled_start;
+      const rawEnd = data.scheduledEnd || data.scheduled_end;
+      if (rawStart && rawEnd) {
+        const start = new Date(rawStart);
+        const end = new Date(rawEnd);
+        return !isNaN(start.getTime()) && !isNaN(end.getTime()) && end.getTime() > start.getTime();
+      }
+      return true;
+    },
+    { message: 'scheduled_end must be strictly after scheduled_start', path: ['scheduled_end'] }
+  );
+
+/**
+ * 4. PATCH /api/interviews/:id
+ * Reschedules or cancels an interview with conflict checking and audit trail logging
+ */
+export async function updateInterview(req: Request, res: Response): Promise<void> {
+  const { id } = req.params;
+
+  if (!id || !UUID_REGEX.test(id)) {
+    res.status(400).json({
+      success: false,
+      error: { message: 'Invalid interview UUID format', statusCode: 400 },
+    });
+    return;
+  }
+
+  const callerUid = req.user?.uid;
+  const callerRole = (req.user?.role || '').toUpperCase();
+
+  if (!callerUid) {
+    res.status(401).json({
+      success: false,
+      error: { message: 'Authentication required prior to interview update', statusCode: 401 },
+    });
+    return;
+  }
+
+  if (callerRole === 'CANDIDATE') {
+    res.status(403).json({
+      success: false,
+      error: { message: 'Forbidden: Candidates cannot reschedule or cancel interviews', statusCode: 403 },
+    });
+    return;
+  }
+
+  const client = await getClient();
+  let inTransaction = false;
+
+  try {
+    // Resolve caller user and company
+    const callerRes = await client.query(
+      `SELECT id, company_id, role, is_active FROM users WHERE firebase_uid = $1 LIMIT 1;`,
+      [callerUid]
+    );
+
+    if (callerRes.rows.length === 0 || !callerRes.rows[0].is_active) {
+      res.status(403).json({
+        success: false,
+        error: { message: 'User account is inactive or not found', statusCode: 403 },
+      });
+      return;
+    }
+
+    const caller = callerRes.rows[0];
+    const callerCompanyId = caller.company_id || req.user?.companyId;
+
+    if (callerRole === 'HR' && !callerCompanyId) {
+      res.status(403).json({
+        success: false,
+        error: { message: 'HR staff must have an active company association', statusCode: 403 },
+      });
+      return;
+    }
+
+    // Fetch existing interview
+    const existingRes = await client.query(
+      `SELECT i.*, j.company_id AS job_company_id
+       FROM interview_events i
+       JOIN applications a ON i.application_id = a.id
+       JOIN jobs j ON a.job_id = j.id
+       WHERE i.id = $1
+       LIMIT 1;`,
+      [id]
+    );
+
+    if (existingRes.rows.length === 0) {
+      res.status(404).json({
+        success: false,
+        error: { message: 'Interview event not found', statusCode: 404 },
+      });
+      return;
+    }
+
+    const existing = existingRes.rows[0];
+
+    // Multi-tenant isolation check
+    if (callerRole !== 'SUPER_ADMIN' && callerCompanyId !== existing.job_company_id) {
+      res.status(403).json({
+        success: false,
+        error: { message: 'Forbidden: Cannot modify an interview requisition belonging to another organization', statusCode: 403 },
+      });
+      return;
+    }
+
+    const body = req.body;
+    const requestedStatus = body.status;
+    const rawStart = body.scheduledStart || body.scheduled_start;
+    const rawEnd = body.scheduledEnd || body.scheduled_end;
+    const rawInterviewer = body.interviewerId || body.interviewer_id;
+    const rawLocation = body.locationOrLink !== undefined ? body.locationOrLink : body.location_or_link;
+    const reason = body.reason || 'Interview update';
+
+    await client.query('BEGIN');
+    inTransaction = true;
+
+    // Lock interview row
+    await client.query(
+      `SELECT id FROM interview_events WHERE id = $1 FOR UPDATE;`,
+      [id]
+    );
+
+    let newStatus = existing.status;
+    let newStart = existing.scheduled_start;
+    let newEnd = existing.scheduled_end;
+    let newInterviewerId = existing.interviewer_id;
+    let newLocation = existing.location_or_link;
+    let rescheduleIncrement = 0;
+
+    // Handle cancellation
+    if (requestedStatus === 'CANCELLED') {
+      newStatus = 'CANCELLED';
+    } else if (rawStart || rawEnd || rawInterviewer || requestedStatus === 'RESCHEDULED') {
+      // Rescheduling
+      newStatus = 'RESCHEDULED';
+      rescheduleIncrement = 1;
+
+      if (rawStart) newStart = new Date(rawStart).toISOString();
+      if (rawEnd) newEnd = new Date(rawEnd).toISOString();
+      if (rawInterviewer) newInterviewerId = rawInterviewer;
+
+      if (new Date(newEnd).getTime() <= new Date(newStart).getTime()) {
+        await client.query('ROLLBACK');
+        inTransaction = false;
+        res.status(400).json({
+          success: false,
+          error: { message: 'scheduled_end must be strictly after scheduled_start', statusCode: 400 },
+        });
+        return;
+      }
+
+      // Lock interviewer schedule to prevent race conditions
+      if (newInterviewerId) {
+        await client.query(
+          `SELECT pg_advisory_xact_lock(hashtext('interviewer_' || $1));`,
+          [newInterviewerId]
+        );
+
+        // Conflict check excluding this interview
+        const conflictRes = await client.query(
+          `SELECT id, scheduled_start, scheduled_end
+           FROM interview_events
+           WHERE interviewer_id = $1
+             AND id != $2
+             AND status IN ('SCHEDULED', 'RESCHEDULED')
+             AND scheduled_start < $4::timestamptz
+             AND scheduled_end > $3::timestamptz
+           LIMIT 1;`,
+          [newInterviewerId, id, newStart, newEnd]
+        );
+
+        if (conflictRes.rows.length > 0) {
+          await client.query('ROLLBACK');
+          inTransaction = false;
+          res.status(409).json({
+            success: false,
+            error: {
+              message: 'Scheduling conflict: Interviewer already has an active interview in the requested time slot',
+              statusCode: 409,
+              code: 'INTERVIEW_SCHEDULE_CONFLICT',
+            },
+          });
+          return;
+        }
+      }
+    } else if (requestedStatus) {
+      newStatus = requestedStatus;
+    }
+
+    if (rawLocation !== undefined) {
+      newLocation = rawLocation;
+    }
+
+    // Update interview record
+    const updateSql = `
+      UPDATE interview_events
+      SET
+        status = $1,
+        scheduled_start = $2,
+        scheduled_end = $3,
+        interviewer_id = $4,
+        location_or_link = $5,
+        reschedule_count = reschedule_count + $6,
+        updated_at = NOW()
+      WHERE id = $7
+      RETURNING *;
+    `;
+
+    const updateRes = await client.query(updateSql, [
+      newStatus,
+      newStart,
+      newEnd,
+      newInterviewerId,
+      newLocation,
+      rescheduleIncrement,
+      id,
+    ]);
+
+    const updated = updateRes.rows[0];
+
+    // Explicit audit log insert
+    await client.query(
+      `INSERT INTO interview_audit_log (
+        interview_id,
+        action,
+        actor_id,
+        previous_start,
+        new_start,
+        previous_end,
+        new_end,
+        reason,
+        metadata
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9);`,
+      [
+        id,
+        newStatus === 'CANCELLED' ? 'CANCELLED' : rescheduleIncrement > 0 ? 'RESCHEDULED' : 'SCHEDULED',
+        caller.id,
+        existing.scheduled_start,
+        newStart,
+        existing.scheduled_end,
+        newEnd,
+        reason,
+        JSON.stringify({
+          updated_by: caller.id,
+          old_status: existing.status,
+          new_status: newStatus,
+        }),
+      ]
+    );
+
+    await client.query('COMMIT');
+    inTransaction = false;
+
+    res.status(200).json({
+      success: true,
+      message: newStatus === 'CANCELLED' ? 'Interview cancelled successfully' : 'Interview updated successfully',
+      interview: {
+        id: updated.id,
+        applicationId: updated.application_id,
+        interviewerId: updated.interviewer_id,
+        title: updated.title,
+        status: updated.status,
+        scheduledStart: updated.scheduled_start,
+        scheduledEnd: updated.scheduled_end,
+        locationOrLink: updated.location_or_link,
+        rescheduleCount: updated.reschedule_count,
+        updatedAt: updated.updated_at,
+      },
+    });
+  } catch (error: any) {
+    if (inTransaction) {
+      try {
+        await client.query('ROLLBACK');
+      } catch (rollbackError) {
+        console.error('[Update Interview Rollback Error]', rollbackError);
+      }
+    }
+    console.error('[Update Interview Error]', error);
+    res.status(500).json({
+      success: false,
+      error: { message: 'Failed to update interview', statusCode: 500 },
+    });
+  } finally {
+    client.release();
+  }
+}
+
+/**
+ * Zod validation schema for submitting an evaluator scorecard
+ */
+export const submitScorecardSchema = z.object({
+  rating: z.number().int().min(1, 'Rating must be between 1 and 5').max(5, 'Rating must be between 1 and 5'),
+  recommendation: z.enum(['STRONG_HIRE', 'HIRE', 'NO_HIRE', 'STRONG_NO_HIRE'], {
+    errorMap: () => ({ message: 'Recommendation must be one of STRONG_HIRE, HIRE, NO_HIRE, STRONG_NO_HIRE' }),
+  }),
+  strengths: z.string().trim().max(5000).optional().nullable(),
+  concerns: z.string().trim().max(5000).optional().nullable(),
+  confidentialNotes: z.string().trim().max(5000).optional().nullable(),
+  confidential_notes: z.string().trim().max(5000).optional().nullable(),
+});
+
+/**
+ * 5. POST /api/interviews/:id/feedback
+ * Submits structured evaluator scorecard and marks interview as COMPLETED.
+ * STRICTLY restricted to internal staff (CANDIDATES get 403 Forbidden).
+ */
+export async function submitScorecard(req: Request, res: Response): Promise<void> {
+  const { id } = req.params;
+
+  if (!id || !UUID_REGEX.test(id)) {
+    res.status(400).json({
+      success: false,
+      error: { message: 'Invalid interview UUID format', statusCode: 400 },
+    });
+    return;
+  }
+
+  const callerUid = req.user?.uid;
+  const callerRole = (req.user?.role || '').toUpperCase();
+
+  if (!callerUid) {
+    res.status(401).json({
+      success: false,
+      error: { message: 'Authentication required prior to scorecard submission', statusCode: 401 },
+    });
+    return;
+  }
+
+  // Candidate Role View Isolation
+  if (callerRole === 'CANDIDATE') {
+    res.status(403).json({
+      success: false,
+      error: { message: 'Forbidden: Candidates cannot submit evaluator scorecards', statusCode: 403 },
+    });
+    return;
+  }
+
+  const client = await getClient();
+  let inTransaction = false;
+
+  try {
+    const callerRes = await client.query(
+      `SELECT id, company_id, role, full_name, is_active FROM users WHERE firebase_uid = $1 LIMIT 1;`,
+      [callerUid]
+    );
+
+    if (callerRes.rows.length === 0 || !callerRes.rows[0].is_active) {
+      res.status(403).json({
+        success: false,
+        error: { message: 'User account is inactive or not found', statusCode: 403 },
+      });
+      return;
+    }
+
+    const caller = callerRes.rows[0];
+    const callerCompanyId = caller.company_id || req.user?.companyId;
+
+    if (callerRole === 'HR' && !callerCompanyId) {
+      res.status(403).json({
+        success: false,
+        error: { message: 'HR staff must have an active company association', statusCode: 403 },
+      });
+      return;
+    }
+
+    // Verify interview existence and tenant
+    const interviewRes = await client.query(
+      `SELECT i.*, j.company_id AS job_company_id
+       FROM interview_events i
+       JOIN applications a ON i.application_id = a.id
+       JOIN jobs j ON a.job_id = j.id
+       WHERE i.id = $1
+       LIMIT 1;`,
+      [id]
+    );
+
+    if (interviewRes.rows.length === 0) {
+      res.status(404).json({
+        success: false,
+        error: { message: 'Interview event not found', statusCode: 404 },
+      });
+      return;
+    }
+
+    const interview = interviewRes.rows[0];
+
+    if (callerRole !== 'SUPER_ADMIN' && callerCompanyId !== interview.job_company_id) {
+      res.status(403).json({
+        success: false,
+        error: { message: 'Forbidden: You cannot evaluate an interview for another organization', statusCode: 403 },
+      });
+      return;
+    }
+
+    const body = req.body;
+    const rating = body.rating;
+    const recommendation = body.recommendation;
+    const strengths = body.strengths || null;
+    const concerns = body.concerns || null;
+    const confidentialNotes = body.confidentialNotes || body.confidential_notes || null;
+
+    await client.query('BEGIN');
+    inTransaction = true;
+
+    // Upsert scorecard
+    const scorecardSql = `
+      INSERT INTO interview_scorecards (
+        interview_id,
+        evaluator_id,
+        rating,
+        recommendation,
+        strengths,
+        concerns,
+        confidential_notes,
+        created_at,
+        updated_at
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, NOW(), NOW())
+      ON CONFLICT (interview_id, evaluator_id) DO UPDATE SET
+        rating = EXCLUDED.rating,
+        recommendation = EXCLUDED.recommendation,
+        strengths = EXCLUDED.strengths,
+        concerns = EXCLUDED.concerns,
+        confidential_notes = EXCLUDED.confidential_notes,
+        updated_at = NOW()
+      RETURNING *;
+    `;
+
+    const scorecardRes = await client.query(scorecardSql, [
+      id,
+      caller.id,
+      rating,
+      recommendation,
+      strengths,
+      concerns,
+      confidentialNotes,
+    ]);
+
+    const scorecard = scorecardRes.rows[0];
+
+    // Mark interview as COMPLETED if active
+    if (interview.status !== 'COMPLETED') {
+      await client.query(
+        `UPDATE interview_events SET status = 'COMPLETED', updated_at = NOW() WHERE id = $1;`,
+        [id]
+      );
+    }
+
+    // Insert audit log
+    await client.query(
+      `INSERT INTO interview_audit_log (
+        interview_id,
+        action,
+        actor_id,
+        reason,
+        metadata
+      ) VALUES ($1, 'SCORECARD_SUBMITTED', $2, $3, $4);`,
+      [
+        id,
+        caller.id,
+        `Scorecard submitted with recommendation: ${recommendation}`,
+        JSON.stringify({
+          rating,
+          recommendation,
+          evaluator_name: caller.full_name,
+        }),
+      ]
+    );
+
+    await client.query('COMMIT');
+    inTransaction = false;
+
+    res.status(201).json({
+      success: true,
+      message: 'Evaluator scorecard recorded successfully',
+      scorecard: {
+        id: scorecard.id,
+        interviewId: scorecard.interview_id,
+        evaluatorId: scorecard.evaluator_id,
+        rating: scorecard.rating,
+        recommendation: scorecard.recommendation,
+        strengths: scorecard.strengths,
+        concerns: scorecard.concerns,
+        confidentialNotes: scorecard.confidential_notes,
+        submittedAt: scorecard.created_at,
+      },
+    });
+  } catch (error: any) {
+    if (inTransaction) {
+      try {
+        await client.query('ROLLBACK');
+      } catch (rollbackError) {
+        console.error('[Submit Scorecard Rollback Error]', rollbackError);
+      }
+    }
+    console.error('[Submit Scorecard Error]', error);
+    res.status(500).json({
+      success: false,
+      error: { message: 'Failed to submit scorecard', statusCode: 500 },
+    });
+  } finally {
+    client.release();
+  }
+}
+
+/**
+ * 6. GET /api/interviews/:id/feedback
+ * Retrieves confidential evaluator scorecards for an interview.
+ * Strictly forbidden for candidate accounts (403 Forbidden).
+ */
+export async function getScorecard(req: Request, res: Response): Promise<void> {
+  const { id } = req.params;
+
+  if (!id || !UUID_REGEX.test(id)) {
+    res.status(400).json({
+      success: false,
+      error: { message: 'Invalid interview UUID format', statusCode: 400 },
+    });
+    return;
+  }
+
+  const callerUid = req.user?.uid;
+  const callerRole = (req.user?.role || '').toUpperCase();
+
+  if (!callerUid) {
+    res.status(401).json({
+      success: false,
+      error: { message: 'Authentication required', statusCode: 401 },
+    });
+    return;
+  }
+
+  // STRICT CANDIDATE ROLE ISOLATION: Candidates must never see internal feedback
+  if (callerRole === 'CANDIDATE') {
+    res.status(403).json({
+      success: false,
+      error: {
+        message: 'Forbidden: Confidential interview feedback is restricted to authorized hiring team members',
+        statusCode: 403,
+      },
+    });
+    return;
+  }
+
+  try {
+    const callerRes = await query(
+      `SELECT id, company_id, role, is_active FROM users WHERE firebase_uid = $1 LIMIT 1;`,
+      [callerUid]
+    );
+
+    if (callerRes.rows.length === 0 || !callerRes.rows[0].is_active) {
+      res.status(403).json({
+        success: false,
+        error: { message: 'User account is inactive or not found', statusCode: 403 },
+      });
+      return;
+    }
+
+    const caller = callerRes.rows[0];
+    const callerCompanyId = caller.company_id || req.user?.companyId;
+
+    // Verify interview existence and company match
+    const interviewRes = await query(
+      `SELECT i.id, j.company_id AS job_company_id
+       FROM interview_events i
+       JOIN applications a ON i.application_id = a.id
+       JOIN jobs j ON a.job_id = j.id
+       WHERE i.id = $1
+       LIMIT 1;`,
+      [id]
+    );
+
+    if (interviewRes.rows.length === 0) {
+      res.status(404).json({
+        success: false,
+        error: { message: 'Interview event not found', statusCode: 404 },
+      });
+      return;
+    }
+
+    const interview = interviewRes.rows[0];
+
+    if (callerRole !== 'SUPER_ADMIN' && callerCompanyId !== interview.job_company_id) {
+      res.status(403).json({
+        success: false,
+        error: { message: 'Forbidden: Cannot access scorecard for another organization', statusCode: 403 },
+      });
+      return;
+    }
+
+    const scorecardsRes = await query(
+      `SELECT s.*, u.full_name AS evaluator_name, u.email AS evaluator_email
+       FROM interview_scorecards s
+       JOIN users u ON s.evaluator_id = u.id
+       WHERE s.interview_id = $1
+       ORDER BY s.created_at ASC;`,
+      [id]
+    );
+
+    res.status(200).json({
+      success: true,
+      scorecards: scorecardsRes.rows.map((row) => ({
+        id: row.id,
+        interviewId: row.interview_id,
+        evaluatorId: row.evaluator_id,
+        evaluatorName: row.evaluator_name,
+        evaluatorEmail: row.evaluator_email,
+        rating: row.rating,
+        recommendation: row.recommendation,
+        strengths: row.strengths,
+        concerns: row.concerns,
+        confidentialNotes: row.confidential_notes,
+        submittedAt: row.created_at,
+      })),
+    });
+  } catch (error: any) {
+    console.error('[Get Scorecard Error]', error);
+    res.status(500).json({
+      success: false,
+      error: { message: 'Failed to retrieve scorecards', statusCode: 500 },
+    });
+  }
+}
+

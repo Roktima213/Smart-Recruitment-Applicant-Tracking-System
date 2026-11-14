@@ -5,7 +5,12 @@ import {
   scheduleInterview,
   listInterviews,
   listInterviewers,
+  updateInterview,
+  submitScorecard,
+  getScorecard,
   createInterviewSchema,
+  updateInterviewSchema,
+  submitScorecardSchema,
 } from '../controllers/interviewController';
 
 const router = Router();
@@ -42,6 +47,41 @@ router.post(
 router.get(
   '/',
   listInterviews
+);
+
+/**
+ * PATCH /api/interviews/:id
+ * Reschedules or cancels an interview with overlap conflict validation
+ * Restricted to staff: HR, RECRUITER, ADMIN, SUPER_ADMIN
+ */
+router.patch(
+  '/:id',
+  requireRole(['ADMIN', 'SUPER_ADMIN', 'HR', 'RECRUITER', 'INTERVIEWER']),
+  validateRequest({ body: updateInterviewSchema }),
+  updateInterview
+);
+
+/**
+ * POST /api/interviews/:id/feedback
+ * Submits structured evaluator scorecard and marks interview COMPLETED
+ * Restricted to staff: HR, RECRUITER, ADMIN, SUPER_ADMIN, INTERVIEWER
+ */
+router.post(
+  '/:id/feedback',
+  requireRole(['ADMIN', 'SUPER_ADMIN', 'HR', 'RECRUITER', 'INTERVIEWER']),
+  validateRequest({ body: submitScorecardSchema }),
+  submitScorecard
+);
+
+/**
+ * GET /api/interviews/:id/feedback
+ * Retrieves confidential evaluator scorecards.
+ * STRICTLY restricted to internal staff (Candidates blocked with 403 Forbidden).
+ */
+router.get(
+  '/:id/feedback',
+  requireRole(['ADMIN', 'SUPER_ADMIN', 'HR', 'RECRUITER', 'INTERVIEWER']),
+  getScorecard
 );
 
 export default router;
