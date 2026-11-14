@@ -181,11 +181,12 @@ export const CandidateInterviewsPage: React.FC = () => {
         />
       )}
 
-      {/* Interview Detail Modal */}
+      {/* Interview Detail Modal (Strict Candidate Isolation: no scorecards or internal controls) */}
       <InterviewDetailModal
         isOpen={!!selectedInterview}
         interview={selectedInterview}
         onClose={() => setSelectedInterview(null)}
+        isCandidateView={true}
       />
     </div>
   );

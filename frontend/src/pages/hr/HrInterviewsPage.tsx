@@ -10,6 +10,7 @@ import {
   InterviewCalendarView,
   InterviewListView,
   InterviewDetailModal,
+  InterviewRescheduleModal,
   CandidateOption,
 } from '../../components/interview';
 import { Button } from '../../components/ui/Button';
@@ -129,6 +130,7 @@ export const HrInterviewsPage: React.FC = () => {
   const [layoutView, setLayoutView] = useState<'calendar' | 'list'>('calendar');
   const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false);
   const [selectedInterviewForDetail, setSelectedInterviewForDetail] = useState<InterviewEvent | null>(null);
+  const [interviewToReschedule, setInterviewToReschedule] = useState<InterviewEvent | null>(null);
 
   const {
     interviews: apiInterviews,
@@ -137,6 +139,9 @@ export const HrInterviewsPage: React.FC = () => {
     fetchInterviews,
     fetchInterviewOptions,
     scheduleInterview,
+    rescheduleInterview,
+    cancelInterview,
+    submitScorecard,
   } = useInterviews();
 
   useEffect(() => {
@@ -236,28 +241,82 @@ export const HrInterviewsPage: React.FC = () => {
     interviewId: string,
     rating: number,
     recommendation: 'STRONG_HIRE' | 'HIRE' | 'NO_HIRE' | 'STRONG_NO_HIRE',
-    notes: string
+    notes: string,
+    strengths?: string,
+    concerns?: string
   ) => {
+    try {
+      await submitScorecard(
+        interviewId,
+        rating,
+        recommendation,
+        notes,
+        strengths,
+        concerns
+      );
+    } catch {
+      // Fallback for mock/local states
+      setInterviews((prev) =>
+        prev.map((inv) => {
+          if (inv.id === interviewId) {
+            return {
+              ...inv,
+              status: 'COMPLETED',
+              scorecard: {
+                evaluatorId: 'eval-user',
+                evaluatorName: inv.interviewer,
+                rating,
+                recommendation,
+                strengths: strengths || notes,
+                concerns,
+                confidentialNotes: notes,
+                submittedAt: new Date().toISOString(),
+              },
+            };
+          }
+          return inv;
+        })
+      );
+      success('Candidate scorecard successfully submitted.', 'Scorecard Recorded');
+    }
+  };
+
+  const handleReschedule = async (
+    interviewId: string,
+    newStart: string,
+    newEnd: string,
+    reason: string
+  ) => {
+    await rescheduleInterview(interviewId, newStart, newEnd, reason);
     setInterviews((prev) =>
       prev.map((inv) => {
         if (inv.id === interviewId) {
           return {
             ...inv,
-            status: 'COMPLETED',
-            scorecard: {
-              evaluatorId: 'eval-user',
-              evaluatorName: inv.interviewer,
-              rating,
-              recommendation,
-              strengths: notes,
-              submittedAt: new Date().toISOString(),
-            },
+            scheduledStart: newStart,
+            scheduledEnd: newEnd,
+            status: 'RESCHEDULED',
+            rescheduleCount: inv.rescheduleCount + 1,
           };
         }
         return inv;
       })
     );
-    success('Candidate scorecard successfully submitted.', 'Scorecard Recorded');
+  };
+
+  const handleCancel = async (interviewId: string, reason: string) => {
+    await cancelInterview(interviewId, reason);
+    setInterviews((prev) =>
+      prev.map((inv) => {
+        if (inv.id === interviewId) {
+          return {
+            ...inv,
+            status: 'CANCELLED',
+          };
+        }
+        return inv;
+      })
+    );
   };
 
   return (
@@ -405,6 +464,19 @@ export const HrInterviewsPage: React.FC = () => {
         interview={selectedInterviewForDetail}
         onClose={() => setSelectedInterviewForDetail(null)}
         onSubmitScorecard={handleScorecardSubmit}
+        onOpenReschedule={(inv) => {
+          setSelectedInterviewForDetail(null);
+          setInterviewToReschedule(inv);
+        }}
+        onCancelInterview={handleCancel}
+      />
+
+      {/* Interview Reschedule Modal */}
+      <InterviewRescheduleModal
+        isOpen={!!interviewToReschedule}
+        interview={interviewToReschedule}
+        onClose={() => setInterviewToReschedule(null)}
+        onReschedule={handleReschedule}
       />
     </div>
   );

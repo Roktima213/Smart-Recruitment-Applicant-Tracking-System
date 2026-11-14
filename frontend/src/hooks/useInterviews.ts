@@ -176,6 +176,112 @@ export const useInterviews = () => {
     [fetchInterviews, toast]
   );
 
+  const rescheduleInterview = useCallback(
+    async (
+      interviewId: string,
+      scheduledStart: string,
+      scheduledEnd: string,
+      reason: string
+    ): Promise<void> => {
+      try {
+        await apiClient.patch(`/interviews/${interviewId}`, {
+          scheduledStart,
+          scheduledEnd,
+          reason,
+        });
+
+        toast.success(
+          'Interview rescheduled successfully.',
+          'Interview Updated'
+        );
+
+        await fetchInterviews();
+      } catch (err: any) {
+        const message =
+          err.response?.data?.error?.message ||
+          err.message ||
+          'Failed to reschedule interview';
+
+        throw new InterviewRequestError(
+          message,
+          err.response?.status,
+          err.response?.data?.error?.code
+        );
+      }
+    },
+    [fetchInterviews, toast]
+  );
+
+  const cancelInterview = useCallback(
+    async (interviewId: string, reason: string): Promise<void> => {
+      try {
+        await apiClient.patch(`/interviews/${interviewId}`, {
+          status: 'CANCELLED',
+          reason,
+        });
+
+        toast.info(
+          'Interview cancelled.',
+          'Interview Cancelled'
+        );
+
+        await fetchInterviews();
+      } catch (err: any) {
+        const message =
+          err.response?.data?.error?.message ||
+          err.message ||
+          'Failed to cancel interview';
+
+        throw new InterviewRequestError(
+          message,
+          err.response?.status,
+          err.response?.data?.error?.code
+        );
+      }
+    },
+    [fetchInterviews, toast]
+  );
+
+  const submitScorecard = useCallback(
+    async (
+      interviewId: string,
+      rating: number,
+      recommendation: string,
+      confidentialNotes: string,
+      strengths?: string,
+      concerns?: string
+    ): Promise<void> => {
+      try {
+        await apiClient.post(`/interviews/${interviewId}/feedback`, {
+          rating,
+          recommendation,
+          confidentialNotes,
+          strengths,
+          concerns,
+        });
+
+        toast.success(
+          'Evaluator scorecard submitted successfully.',
+          'Scorecard Saved'
+        );
+
+        await fetchInterviews();
+      } catch (err: any) {
+        const message =
+          err.response?.data?.error?.message ||
+          err.message ||
+          'Failed to submit scorecard';
+
+        throw new InterviewRequestError(
+          message,
+          err.response?.status,
+          err.response?.data?.error?.code
+        );
+      }
+    },
+    [fetchInterviews, toast]
+  );
+
   return {
     interviews,
     interviewers,
@@ -186,6 +292,9 @@ export const useInterviews = () => {
     fetchInterviews,
     fetchInterviewOptions,
     scheduleInterview,
+    rescheduleInterview,
+    cancelInterview,
+    submitScorecard,
   };
 };
 
