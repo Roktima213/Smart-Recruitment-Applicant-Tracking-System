@@ -305,15 +305,15 @@ Establish Schema / API Contract               Build UI & State using Mock Data (
 ---
 
 #### 🔹 Day 17 (Floor 17): Email Notification Service, Retry Logger & Simulated Mode
-* [ ] **Cloud:** `feat(cloud): configure smtp transport and simulated email mode toggle`
+* [x] **Cloud:** `feat(cloud): configure smtp transport and simulated email mode toggle`
   * Configure SMTP credentials and `EMAIL_MODE=SIMULATED|LIVE_SMTP` environment toggle.
-* [ ] **Backend:** `feat(notify-api): implement email notification service with retry and db log`
+* [x] **Backend:** `feat(notify-api): implement email notification service with retry and db log`
   * Build `notificationService.ts` with exponential backoff retry (up to 2 retries) logging to `notification_events`.
-* [ ] **Frontend 1:** `feat(notify-ui): build notification delivery log table and mode indicator`
+* [x] **Frontend 1:** `feat(notify-ui): build notification delivery log table and mode indicator`
   * Build Notification Delivery Log viewer in Admin/HR showing status (SENT/FAILED) and SIMULATED badge.
-* [ ] **Frontend 2:** `feat(notify-ui): wire in-app notification bell and unread status handler`
+* [x] **Frontend 2:** `feat(notify-ui): wire in-app notification bell and unread status handler`
   * Wire in-app notification bell icon, unread counter badge, and mark-as-read click handler.
-* [ ] **Leader / DevOps:** `test(notify): add unit tests for email retry logic and simulated mode logging`
+* [x] **Leader / DevOps:** `test(notify): add unit tests for email retry logic and simulated mode logging`
   * Write unit tests mocking SMTP failure to verify retry counter increments and failure is logged.
 * **Daily Done Criteria:** Application actions trigger notification log entries; SIMULATED mode outputs email content cleanly to logs/UI.
 
