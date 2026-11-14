@@ -190,8 +190,13 @@ export const ProfileEditor: React.FC<ProfileEditorProps> = ({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!validateForm()) return;
-    await onSave(formData);
-    setIsDirty(false);
+
+    try {
+      await onSave(formData);
+      setIsDirty(false);
+    } catch (error) {
+      console.error('Failed to save candidate profile:', error);
+    }
   };
 
   const handleReset = () => {

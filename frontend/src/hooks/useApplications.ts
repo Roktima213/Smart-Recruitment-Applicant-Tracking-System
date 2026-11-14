@@ -45,7 +45,7 @@ export interface SubmitApplicationPayload {
   answers?: Record<string, any>;
 }
 
-export const useApplications = () => {
+export const useApplications = (enabled = true) => {
   const toast = useToast();
   const [applications, setApplications] = useState<CandidateApplicationRecord[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
@@ -69,10 +69,11 @@ export const useApplications = () => {
     }
   }, []);
 
-  useEffect(() => {
+useEffect(() => {
+  if (enabled) {
     fetchApplications();
-  }, [fetchApplications]);
-
+  }
+}, [enabled, fetchApplications]);
   const applyToJob = async (payload: SubmitApplicationPayload): Promise<CandidateApplicationRecord> => {
     setSubmitting(true);
     try {

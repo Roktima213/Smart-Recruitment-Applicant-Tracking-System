@@ -115,51 +115,69 @@ export const ApplicationStatusCard: React.FC<ApplicationStatusCardProps> = ({
   const isRejected = application.stage === 'REJECTED';
   const isOffered = application.stage === 'OFFERED' || application.stage === 'SELECTED';
 
-  // Private Resume Download Handler (Floor 11 verified stream or simulation)
+
+  // Resume Download Handler
   const handleDownloadResume = async () => {
+    const resumeId = application.resumeId;
+
+    if (!resumeId) {
+      toast.error(
+        'No resume is attached to this application.',
+        'Download Unavailable'
+      );
+      return;
+    }
+
+    if (isDownloadingResume) return;
+
     setIsDownloadingResume(true);
-    const resumeId = application.resumeId || 'active-resume';
-    const fileName = application.resumeFileName || `${application.jobTitle.replace(/\s+/g, '_')}_Resume.pdf`;
+
+    const fileName =
+      application.resumeFileName ||
+      `${application.jobTitle.replace(/\s+/g, '_')}_Resume.pdf`;
+
+    let downloadUrl: string | null = null;
 
     try {
-      // Contract-first: Call GET /api/resumes/:id/download with auth bearer headers
-      const response = await apiClient
-        .get(`/resumes/${resumeId}/download`, {
-          responseType: 'blob',
-        })
-        .catch(() => null);
+      const response = await apiClient.get(
+        `/resumes/${resumeId}/download`,
+        { responseType: 'blob' }
+      );
 
-      if (response && response.data) {
-        const url = window.URL.createObjectURL(new Blob([response.data]));
-        const link = document.createElement('a');
-        link.href = url;
-        link.setAttribute('download', fileName);
-        document.body.appendChild(link);
-        link.click();
-        link.remove();
-        window.URL.revokeObjectURL(url);
-        toast.success(`Downloaded ${fileName}`, 'Resume Acquired');
-      } else {
-        // Mock fallback download simulation for offline/emulator
-        const simulatedBlob = new Blob(
-          [
-            `Smart ATS Verified Resume Record\nCandidate Application: ${application.jobTitle}\nCompany: ${application.company}\nStatus: ${application.stage}\nSubmitted: ${application.submittedOn}`,
-          ],
-          { type: 'application/pdf' }
-        );
-        const url = window.URL.createObjectURL(simulatedBlob);
-        const link = document.createElement('a');
-        link.href = url;
-        link.setAttribute('download', fileName);
-        document.body.appendChild(link);
-        link.click();
-        link.remove();
-        window.URL.revokeObjectURL(url);
-        toast.info(`Downloaded attached resume: ${fileName}`, 'Resume Acquired');
-      }
-    } catch (err: any) {
-      toast.error('Failed to stream resume document.', 'Download Error');
+      const contentType = response.headers['content-type'];
+
+      downloadUrl = window.URL.createObjectURL(
+        new Blob([response.data], {
+          type:
+            typeof contentType === 'string'
+              ? contentType
+              : 'application/pdf',
+        })
+      );
+
+      const link = document.createElement('a');
+      link.href = downloadUrl;
+      link.download = fileName;
+
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+
+      toast.success(`Downloaded ${fileName}`, 'Resume Downloaded');
+    } catch {
+      toast.error(
+        'Failed to download the resume. Please try again.',
+        'Download Failed'
+      );
     } finally {
+      if (downloadUrl !== null) {
+        const urlToRevoke = downloadUrl;
+
+        window.setTimeout(() => {
+          window.URL.revokeObjectURL(urlToRevoke);
+        }, 1000);
+      }
+
       setIsDownloadingResume(false);
     }
   };
@@ -459,6 +477,7 @@ export const ApplicationStatusCard: React.FC<ApplicationStatusCardProps> = ({
               size="sm"
               onClick={handleDownloadResume}
               isLoading={isDownloadingResume}
+              disabled={!application.resumeId || isDownloadingResume}
               leftIcon={<Download className="w-3.5 h-3.5" />}
             >
               Download Resume
@@ -562,6 +581,7 @@ export const ApplicationStatusCard: React.FC<ApplicationStatusCardProps> = ({
                   size="sm"
                   onClick={handleDownloadResume}
                   isLoading={isDownloadingResume}
+                  disabled={!application.resumeId || isDownloadingResume}
                   leftIcon={<Download className="w-3.5 h-3.5" />}
                 >
                   Download

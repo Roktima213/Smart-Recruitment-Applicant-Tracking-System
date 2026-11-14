@@ -117,6 +117,7 @@ app.use('/api/resumes', resumeRoutes);
 
 // Job Application Submission & Candidate History endpoints
 app.use('/api/applications', applicationRoutes);
+app.use('/api/interviews', interviewRoutes);
 
 // Interview Scheduling & Conflict Check endpoints
 app.use('/api/interviews', interviewRoutes);

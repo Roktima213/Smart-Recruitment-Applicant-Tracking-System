@@ -4,6 +4,7 @@ import { validateRequest } from '../middleware/validateRequest';
 import {
   scheduleInterview,
   listInterviews,
+  listInterviewers,
   createInterviewSchema,
 } from '../controllers/interviewController';
 
@@ -11,6 +12,16 @@ const router = Router();
 
 // Protect all /api/interviews endpoints with Firebase authentication
 router.use(authenticateFirebase);
+
+/**
+ * GET /api/interviews/interviewers
+ * Retrieves available active interviewers for scheduling within tenant company
+ */
+router.get(
+  '/interviewers',
+  requireRole(['ADMIN', 'SUPER_ADMIN', 'HR', 'RECRUITER']),
+  listInterviewers
+);
 
 /**
  * POST /api/interviews

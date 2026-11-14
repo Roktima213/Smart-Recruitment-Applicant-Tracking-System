@@ -626,3 +626,68 @@ export async function listInterviews(req: Request, res: Response): Promise<void>
     });
   }
 }
+
+/**
+ * 3. GET /api/interviews/interviewers
+ * Returns active HR/interviewer staff users in the authenticated HR user's company
+ */
+export async function listInterviewers(req: Request, res: Response): Promise<void> {
+  try {
+    const callerUid = req.user?.uid;
+    const callerRole = (req.user?.role || '').toUpperCase();
+
+    if (!callerUid) {
+      res.status(401).json({
+        success: false,
+        error: { message: 'Authentication required prior to listing interviewers', statusCode: 401 },
+      });
+      return;
+    }
+
+    let companyId = req.user?.companyId;
+    if (!companyId) {
+      const userRes = await query(
+        `SELECT company_id FROM users WHERE firebase_uid = $1 LIMIT 1;`,
+        [callerUid]
+      );
+      companyId = userRes.rows[0]?.company_id;
+    }
+
+    if (callerRole === 'HR' && !companyId) {
+      res.status(403).json({
+        success: false,
+        error: { message: 'HR staff must have an active company association', statusCode: 403 },
+      });
+      return;
+    }
+
+    const querySql = companyId
+      ? `SELECT id, full_name, email, role
+         FROM users
+         WHERE company_id = $1 AND role IN ('HR', 'ADMIN', 'INTERVIEWER', 'RECRUITER') AND is_active = TRUE
+         ORDER BY full_name ASC;`
+      : `SELECT id, full_name, email, role
+         FROM users
+         WHERE role IN ('HR', 'ADMIN', 'INTERVIEWER', 'RECRUITER') AND is_active = TRUE
+         ORDER BY full_name ASC;`;
+
+    const params = companyId ? [companyId] : [];
+    const interviewersRes = await query(querySql, params);
+
+    res.status(200).json({
+      success: true,
+      data: interviewersRes.rows.map((row) => ({
+        id: row.id,
+        name: row.full_name,
+        email: row.email,
+        role: row.role,
+      })),
+    });
+  } catch (error: any) {
+    console.error('[List Interviewers Error]', error);
+    res.status(500).json({
+      success: false,
+      error: { message: 'Failed to retrieve available interviewers', statusCode: 500 },
+    });
+  }
+}

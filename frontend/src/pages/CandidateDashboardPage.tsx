@@ -1,4 +1,6 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
+import { Link } from 'react-router-dom';
+import { ROUTES } from '../constants/routes';
 import {
   FileText,
   Clock,
@@ -20,6 +22,7 @@ import { useAuth } from '../context/AuthContext';
 import { Button } from '../components/ui/Button';
 import { Badge } from '../components/ui/Badge';
 import { Modal } from '../components/ui/Modal';
+import { Pagination } from '../components/ui/Pagination';
 import { apiClient } from '../services/apiClient';
 import {
   ProfileEditor,
@@ -74,122 +77,135 @@ export const CandidateDashboardPage: React.FC = () => {
   // ---------------------------------------------------------------------------
   // 2. Candidate Profile State
   // ---------------------------------------------------------------------------
-  const [profileData, setProfileData] = useState<CandidateProfileData>({
-    fullName: dbUser?.full_name || 'Rekha Sharma',
-    headline: 'Senior Full Stack & Frontend Engineer | React, TypeScript & Node.js',
-    phoneNumber: '+1 (555) 234-5678',
-    summary:
-      'Passionate Full Stack Engineer with 5+ years of experience designing high-performance user interfaces, scalable backend microservices, and modern cloud architectures. Specialized in React, TypeScript, Node.js, and automated CI/CD pipelines.',
-    skills: [
-      'React',
-      'TypeScript',
-      'JavaScript',
-      'Node.js',
-      'Tailwind CSS',
-      'PostgreSQL',
-      'Docker',
-      'REST APIs',
-      'GraphQL',
-      'AWS',
-      'Git',
-    ],
-    currentCompany: 'TechCorp Labs',
-    experienceYears: 5.5,
-    location: 'San Francisco, CA (Open to Remote)',
-    linkedinUrl: 'https://linkedin.com/in/rekha-frontend',
-    githubUrl: 'https://github.com/rekhansika',
-    portfolioUrl: 'https://rekha.dev',
-  });
+const [profileData, setProfileData] = useState<CandidateProfileData>({
+  fullName: dbUser?.full_name || '',
+  headline: '',
+  phoneNumber: '',
+  summary: '',
+  skills: [],
+  currentCompany: '',
+  experienceYears: 0,
+  location: '',
+  linkedinUrl: '',
+  githubUrl: '',
+  portfolioUrl: '',
+});
 
   const [isSavingProfile, setIsSavingProfile] = useState(false);
 
   // ---------------------------------------------------------------------------
-  // 3. Resume State & Dropzone Upload Simulation
+  // 3. Resume State & Upload
   // ---------------------------------------------------------------------------
-  const [activeResume, setActiveResume] = useState<ResumeDocument | null>({
-    id: 'res-001',
-    fileName: 'Rekha_Sharma_Senior_FullStack_Resume_2026.pdf',
-    fileSize: 2457600, // 2.34 MB
-    mimeType: 'application/pdf',
-    uploadedAt: '2026-11-10T14:30:00Z',
-    status: 'ACTIVE',
-    atsScore: 96,
-    extractedSkills: [
-      'React',
-      'TypeScript',
-      'Node.js',
-      'Tailwind CSS',
-      'PostgreSQL',
-      'Docker',
-      'AWS',
-      'REST APIs',
-      'CI/CD Pipelines',
-      'GraphQL',
-    ],
-    pageCount: 2,
-    sha256Hash: 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855',
-  });
+const [activeResume, setActiveResume] = useState<ResumeDocument | null>(null);
 
   const [isUploadingResume, setIsUploadingResume] = useState(false);
+  const [isDownloadingResume, setIsDownloadingResume] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const dropzoneRef = useRef<HTMLDivElement>(null);
 
-  // Resume Upload Handler (with simulated progress and ATS parsing)
-  const handleResumeUpload = (file: File) => {
-    setIsUploadingResume(true);
+  // Resume Upload Handler
+const handleResumeUpload = async (file: File) => {
+  setIsUploadingResume(true);
+  setUploadProgress(0);
+  setUploadError(null);
+
+  const formData = new FormData();
+  formData.append('resume', file);
+
+  try {
+    const response = await apiClient.post('/candidates/me/resume', formData, {
+      onUploadProgress: (event) => {
+        if (event.total) {
+          setUploadProgress(Math.round((event.loaded * 100) / event.total));
+        }
+      },
+    });
+
+    const uploadedResume = response.data?.resume;
+
+    if (!uploadedResume?.id) {
+      throw new Error('The server did not return valid resume information.');
+    }
+
+    const newResume: ResumeDocument = {
+      id: uploadedResume.id,
+      fileName: uploadedResume.fileName,
+      fileSize: Number(uploadedResume.fileSizeBytes),
+      mimeType: uploadedResume.mimeType,
+      uploadedAt: uploadedResume.createdAt,
+      status: 'VERIFIED',
+      sha256Hash: uploadedResume.sha256Hash,
+    };
+
+    setActiveResume(newResume);
+    addToast('Resume uploaded and verified successfully!', 'success');
+  } catch (error: any) {
+    const message =
+      error.response?.data?.error?.message ||
+      error.response?.data?.message ||
+      error.message ||
+      'Resume upload failed. Please try again.';
+
+    setUploadError(message);
+    addToast(message, 'error');
+  } finally {
+    setIsUploadingResume(false);
     setUploadProgress(0);
-    setUploadError(null);
+  }
+};
 
-    // Simulated stepped upload with progress
-    let currentProgress = 0;
-    const interval = setInterval(() => {
-      currentProgress += Math.floor(Math.random() * 25) + 15;
-      if (currentProgress >= 100) {
-        currentProgress = 100;
-        clearInterval(interval);
 
-        setTimeout(() => {
-          // Detect extracted skills based on file or profile
-          const extractedSkills = [
-            'React',
-            'TypeScript',
-            'Node.js',
-            'Tailwind CSS',
-            'PostgreSQL',
-            'Docker',
-            'AWS',
-            'REST APIs',
-          ];
+const handleResumeDownload = async () => {
+  if (!activeResume?.id || isDownloadingResume) {
+    if (!activeResume?.id) {
+      addToast('No resume is available to download.', 'error');
+    }
+    return;
+  }
 
-          const newResume: ResumeDocument = {
-            id: `res-${Date.now()}`,
-            fileName: file.name,
-            fileSize: file.size,
-            mimeType: file.type || 'application/pdf',
-            uploadedAt: new Date().toISOString(),
-            status: 'ACTIVE',
-            atsScore: Math.floor(Math.random() * 8) + 92, // 92 - 99%
-            extractedSkills,
-            pageCount: 2,
-            sha256Hash: `hash-${Math.random().toString(36).substring(2, 12)}`,
-          };
+  setIsDownloadingResume(true);
 
-          setActiveResume(newResume);
-          setIsUploadingResume(false);
-          setUploadProgress(0);
-          addToast(`Resume "${file.name}" uploaded and parsed successfully!`, 'success');
-        }, 500);
-      }
-      setUploadProgress(currentProgress);
-    }, 200);
-  };
+  let downloadUrl: string | null = null;
 
-  const handleResumeDelete = () => {
-    const deletedName = activeResume?.fileName;
-    setActiveResume(null);
-    addToast(`Resume "${deletedName || 'file'}" has been removed.`, 'info');
-  };
+  try {
+    const response = await apiClient.get(
+      `/resumes/${activeResume.id}/download`,
+      { responseType: 'blob' }
+    );
+
+    downloadUrl = window.URL.createObjectURL(
+      new Blob([response.data], {
+        type: activeResume.mimeType || 'application/pdf',
+      })
+    );
+
+    const link = document.createElement('a');
+    link.href = downloadUrl;
+    link.download = activeResume.fileName;
+
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+
+    addToast('Resume downloaded successfully.', 'success');
+  } catch (error: any) {
+    addToast(
+      error.response?.data?.error?.message ||
+        'Failed to download resume.',
+      'error'
+    );
+  } finally {
+    if (downloadUrl) {
+      const urlToRevoke = downloadUrl;
+      window.setTimeout(() => {
+        window.URL.revokeObjectURL(urlToRevoke);
+      }, 1000);
+    }
+
+    setIsDownloadingResume(false);
+  }
+};
 
   const handleResumeReplace = () => {
     // Scroll or focus on the dropzone
@@ -363,6 +379,65 @@ export const CandidateDashboardPage: React.FC = () => {
         // graceful offline fallback
       });
   }, []);
+    // Load the authenticated candidate's saved profile and latest resume.
+  useEffect(() => {
+    if (!dbUser?.id || dbUser.role !== 'CANDIDATE') {
+      return;
+    }
+
+    let cancelled = false;
+
+    const loadCandidateProfile = async () => {
+      try {
+        const response = await apiClient.get('/candidates/me');
+        const profile = response.data?.profile;
+
+        if (!profile || cancelled) {
+          return;
+        }
+
+        setProfileData((prev) => ({
+          ...prev,
+          fullName: profile.name ?? dbUser.full_name ?? '',
+          phoneNumber: profile.phone ?? '',
+          location: profile.location ?? '',
+          headline: profile.headline ?? '',
+          summary: profile.summary ?? '',
+          skills: Array.isArray(profile.skills) ? profile.skills : [],
+          currentCompany: profile.currentCompany ?? '',
+          experienceYears: profile.experienceYears ?? 0,
+          linkedinUrl: profile.linkedinUrl ?? '',
+          githubUrl: profile.githubUrl ?? '',
+          portfolioUrl: profile.portfolioUrl ?? '',
+        }));
+
+        if (profile.resume?.id) {
+          setActiveResume({
+            id: profile.resume.id,
+            fileName: profile.resume.fileName ?? 'Resume',
+            fileSize: Number(profile.resume.fileSizeBytes ?? 0),
+            mimeType: profile.resume.mimeType ?? '',
+            uploadedAt: profile.resume.createdAt ?? '',
+            status: 'VERIFIED',
+            sha256Hash: profile.resume.sha256Hash,
+          });
+        } else {
+          setActiveResume(null);
+        }
+      } catch (error) {
+        if (!cancelled) {
+          console.error('Failed to load candidate profile:', error);
+          addToast('Unable to load your saved profile. Please refresh the page.', 'error');
+        }
+      }
+    };
+
+    loadCandidateProfile();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [dbUser?.id, dbUser?.role]);
 
   // Handle Application Withdrawal
   const handleWithdrawApplication = (appId: string) => {
@@ -379,6 +454,9 @@ export const CandidateDashboardPage: React.FC = () => {
   };
 
   // Filtered applications by stage & search query
+  const [applicationsPage, setApplicationsPage] = useState<number>(1);
+  const APPLICATIONS_PER_PAGE = 3;
+
   const filteredApplications = useMemo(() => {
     return applications.filter((app) => {
       const matchesStage = appFilter === 'ALL' || app.stage === appFilter;
@@ -393,6 +471,17 @@ export const CandidateDashboardPage: React.FC = () => {
       return matchesStage && matchesSearch;
     });
   }, [applications, appFilter, searchQuery]);
+
+  // Reset page when filter or search changes
+  useEffect(() => {
+    setApplicationsPage(1);
+  }, [appFilter, searchQuery]);
+
+  const totalAppPages = Math.ceil(filteredApplications.length / APPLICATIONS_PER_PAGE);
+  const paginatedApplications = useMemo(() => {
+    const start = (applicationsPage - 1) * APPLICATIONS_PER_PAGE;
+    return filteredApplications.slice(start, start + APPLICATIONS_PER_PAGE);
+  }, [filteredApplications, applicationsPage]);
 
   // ---------------------------------------------------------------------------
   // 5. Dynamic Profile Completeness Calculation
@@ -411,23 +500,37 @@ export const CandidateDashboardPage: React.FC = () => {
   // ---------------------------------------------------------------------------
   // 6. Profile Save Handler
   // ---------------------------------------------------------------------------
-  const handleSaveProfile = async (updatedData: CandidateProfileData) => {
-    setIsSavingProfile(true);
-    try {
-      // Contract-first attempt to save to backend API
-      await apiClient.put('/candidate/profile', updatedData).catch(() => {
-        // Fallback silently if candidate endpoint is still in draft
-      });
+const handleSaveProfile = async (updatedData: CandidateProfileData) => {
+  setIsSavingProfile(true);
 
-      setProfileData(updatedData);
-      addToast('Candidate profile updated successfully!', 'success');
-    } catch {
-      addToast('Profile changes saved to local session.', 'info');
-    } finally {
-      setIsSavingProfile(false);
-    }
-  };
+  try {
+    await apiClient.put('/candidates/me', {
+      fullName: updatedData.fullName,
+      location: updatedData.location,
+      summary: updatedData.summary,
+      skills: updatedData.skills,
+      phone: updatedData.phoneNumber,
+      headline: updatedData.headline,
+      currentCompany: updatedData.currentCompany,
+      experienceYears: Number(updatedData.experienceYears) || 0,
+      linkedinUrl: updatedData.linkedinUrl,
+      githubUrl: updatedData.githubUrl,
+      portfolioUrl: updatedData.portfolioUrl,
+    });
 
+    setProfileData(updatedData);
+    addToast('Candidate profile updated successfully!', 'success');
+  } catch (error: any) {
+    const message =
+      error.response?.data?.error?.message ||
+      'Failed to save profile. Please try again.';
+
+    addToast(message, 'error');
+    throw error;
+  } finally {
+    setIsSavingProfile(false);
+  }
+};
   // Recommended Jobs Mock
   const recommendedJobs = [
     {
@@ -799,8 +902,7 @@ export const CandidateDashboardPage: React.FC = () => {
                 <DocumentPreviewCard
                   resume={activeResume}
                   onReplaceClick={handleResumeReplace}
-                  onDeleteClick={handleResumeDelete}
-                  onDownloadClick={() => addToast(`Downloading ${activeResume.fileName}...`, 'info')}
+                  onDownloadClick={handleResumeDownload}
                 />
               </div>
             ) : (
@@ -926,14 +1028,45 @@ export const CandidateDashboardPage: React.FC = () => {
             </div>
           ) : (
             <div className="space-y-5">
-              {filteredApplications.map((app) => (
-                <ApplicationStatusCard
-                  key={app.id}
-                  application={app}
-                  onWithdraw={handleWithdrawApplication}
-                  onViewDetails={(appRecord) => setSelectedApplication(appRecord)}
-                />
-              ))}
+              <div
+                role="status"
+                aria-live="polite"
+                className="sr-only"
+              >
+                Showing page {applicationsPage} of {totalAppPages}, {filteredApplications.length} total applications matching criteria.
+              </div>
+
+              <div className="space-y-4">
+                {paginatedApplications.map((app) => (
+                  <ApplicationStatusCard
+                    key={app.id}
+                    application={app}
+                    onWithdraw={handleWithdrawApplication}
+                    onViewDetails={(appRecord) => setSelectedApplication(appRecord)}
+                  />
+                ))}
+              </div>
+
+              {/* Pagination Controls */}
+              {totalAppPages > 1 && (
+                <div className="pt-4 border-t border-slate-200/80 flex flex-col sm:flex-row items-center justify-between gap-3">
+                  <p className="text-xs text-slate-500">
+                    Showing <strong className="text-slate-800">{(applicationsPage - 1) * APPLICATIONS_PER_PAGE + 1}</strong> to{' '}
+                    <strong className="text-slate-800">
+                      {Math.min(applicationsPage * APPLICATIONS_PER_PAGE, filteredApplications.length)}
+                    </strong>{' '}
+                    of <strong className="text-slate-800">{filteredApplications.length}</strong> applications
+                  </p>
+                  <Pagination
+                    currentPage={applicationsPage}
+                    totalPages={totalAppPages}
+                    onPageChange={(p) => {
+                      setApplicationsPage(p);
+                      window.scrollTo({ top: 0, behavior: 'smooth' });
+                    }}
+                  />
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -945,11 +1078,20 @@ export const CandidateDashboardPage: React.FC = () => {
       {activeTab === 'interviews' && (
         <div className="space-y-6 animate-fadeIn">
           <div className="bg-white rounded-2xl border border-slate-200/90 shadow-xs p-6 sm:p-8 space-y-6">
-            <div>
-              <h2 className="text-xl font-bold text-slate-900 tracking-tight">Upcoming Interviews</h2>
-              <p className="text-xs text-slate-500 mt-0.5">
-                Review your interview rounds, video conference links, and preparation recommendations.
-              </p>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div>
+                <h2 className="text-xl font-bold text-slate-900 tracking-tight">Upcoming Interviews</h2>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Review your interview rounds, video conference links, and preparation recommendations.
+                </p>
+              </div>
+              <Link
+                to={ROUTES.CANDIDATE_INTERVIEWS}
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold text-purple-700 bg-purple-50 hover:bg-purple-100 border border-purple-200 rounded-xl transition shadow-2xs self-start sm:self-auto"
+              >
+                <Calendar className="w-4 h-4" />
+                <span>Calendar & List Layout View →</span>
+              </Link>
             </div>
 
             {/* Upcoming Interview Card */}
