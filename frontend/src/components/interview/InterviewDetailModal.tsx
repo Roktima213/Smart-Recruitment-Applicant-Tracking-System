@@ -8,6 +8,9 @@ import {
   Check,
   Star,
   FileCheck2,
+  RefreshCw,
+  Ban,
+  AlertTriangle,
 } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { Badge } from '../ui/Badge';
@@ -21,8 +24,13 @@ export interface InterviewDetailModalProps {
     interviewId: string,
     rating: number,
     recommendation: 'STRONG_HIRE' | 'HIRE' | 'NO_HIRE' | 'STRONG_NO_HIRE',
-    notes: string
+    notes: string,
+    strengths?: string,
+    concerns?: string
   ) => Promise<void> | void;
+  onOpenReschedule?: (interview: InterviewEvent) => void;
+  onCancelInterview?: (interviewId: string, reason: string) => Promise<void>;
+  isCandidateView?: boolean;
 }
 
 export const InterviewDetailModal: React.FC<InterviewDetailModalProps> = ({
@@ -30,15 +38,24 @@ export const InterviewDetailModal: React.FC<InterviewDetailModalProps> = ({
   interview,
   onClose,
   onSubmitScorecard,
+  onOpenReschedule,
+  onCancelInterview,
+  isCandidateView = false,
 }) => {
   const [copiedLink, setCopiedLink] = useState(false);
   const [scorecardRating, setScorecardRating] = useState<number>(4);
   const [recommendation, setRecommendation] = useState<
     'STRONG_HIRE' | 'HIRE' | 'NO_HIRE' | 'STRONG_NO_HIRE'
   >('HIRE');
+  const [strengths, setStrengths] = useState<string>('');
+  const [concerns, setConcerns] = useState<string>('');
   const [scorecardNotes, setScorecardNotes] = useState<string>('');
   const [isSubmittingScorecard, setIsSubmittingScorecard] = useState(false);
   const [scorecardSuccess, setScorecardSuccess] = useState(false);
+
+  const [showCancelPrompt, setShowCancelPrompt] = useState(false);
+  const [cancelReason, setCancelReason] = useState('');
+  const [isCancelling, setIsCancelling] = useState(false);
 
   const modalRef = useRef<HTMLDivElement>(null);
   const closeBtnRef = useRef<HTMLButtonElement>(null);
@@ -46,6 +63,10 @@ export const InterviewDetailModal: React.FC<InterviewDetailModalProps> = ({
   // Capture-phase escape dismissal
   useEffect(() => {
     if (!isOpen) return;
+
+    setShowCancelPrompt(false);
+    setCancelReason('');
+    setScorecardSuccess(false);
 
     const handleEscape = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
@@ -90,7 +111,9 @@ export const InterviewDetailModal: React.FC<InterviewDetailModalProps> = ({
         interview.id,
         scorecardRating,
         recommendation,
-        scorecardNotes.trim()
+        scorecardNotes.trim(),
+        strengths.trim(),
+        concerns.trim()
       );
       setScorecardSuccess(true);
     } catch (err) {
@@ -99,6 +122,23 @@ export const InterviewDetailModal: React.FC<InterviewDetailModalProps> = ({
       setIsSubmittingScorecard(false);
     }
   };
+
+  const handleConfirmCancel = async () => {
+    if (!onCancelInterview || cancelReason.trim().length < 3) return;
+
+    try {
+      setIsCancelling(true);
+      await onCancelInterview(interview.id, cancelReason.trim());
+      setShowCancelPrompt(false);
+      onClose();
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsCancelling(false);
+    }
+  };
+
+  const isTerminal = interview.status === 'CANCELLED' || interview.status === 'COMPLETED';
 
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto" role="presentation">
@@ -124,9 +164,24 @@ export const InterviewDetailModal: React.FC<InterviewDetailModalProps> = ({
                 <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-purple-100 text-purple-800">
                   {interview.type}
                 </span>
-                <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+                <span
+                  className={`text-xs font-semibold px-2 py-0.5 rounded-full border ${
+                    interview.status === 'CANCELLED'
+                      ? 'bg-red-50 text-red-700 border-red-200'
+                      : interview.status === 'COMPLETED'
+                      ? 'bg-blue-50 text-blue-700 border-blue-200'
+                      : interview.status === 'RESCHEDULED'
+                      ? 'bg-amber-50 text-amber-700 border-amber-200'
+                      : 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                  }`}
+                >
                   {interview.status}
                 </span>
+                {interview.rescheduleCount > 0 && (
+                  <span className="text-[10px] text-amber-700 font-medium bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200">
+                    Rescheduled ({interview.rescheduleCount}x)
+                  </span>
+                )}
               </div>
               <h3 id="interview-detail-title" className="text-base font-bold text-slate-900 mt-1.5">
                 {interview.title}
@@ -143,7 +198,7 @@ export const InterviewDetailModal: React.FC<InterviewDetailModalProps> = ({
             </button>
           </div>
 
-          <div className="p-6 space-y-5 text-xs">
+          <div className="p-6 space-y-5 text-xs max-h-[75vh] overflow-y-auto">
             {/* Candidate & Interviewer Cards */}
             <div className="grid grid-cols-2 gap-3 p-3.5 bg-slate-50 rounded-xl border border-slate-200">
               <div>
@@ -166,7 +221,14 @@ export const InterviewDetailModal: React.FC<InterviewDetailModalProps> = ({
             <div className="p-3.5 rounded-xl border border-slate-200 space-y-2">
               <div className="flex items-center gap-2 text-slate-700 font-medium">
                 <Calendar className="w-4 h-4 text-purple-600" />
-                <span>{new Date(interview.scheduledStart).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}</span>
+                <span>
+                  {new Date(interview.scheduledStart).toLocaleDateString('en-US', {
+                    weekday: 'long',
+                    month: 'long',
+                    day: 'numeric',
+                    year: 'numeric',
+                  })}
+                </span>
               </div>
               <div className="flex items-center gap-2 text-slate-600">
                 <Clock className="w-4 h-4 text-slate-400" />
@@ -195,7 +257,7 @@ export const InterviewDetailModal: React.FC<InterviewDetailModalProps> = ({
                   href={interview.locationOrLink}
                   target="_blank"
                   rel="noreferrer"
-                  className="inline-flex items-center gap-1.5 px-3 py-2 bg-brand-600 hover:bg-brand-700 text-white font-semibold rounded-xl transition"
+                  className="inline-flex items-center gap-1.5 px-3 py-2 bg-purple-600 hover:bg-purple-700 text-white font-semibold rounded-xl transition"
                 >
                   <Video className="w-4 h-4" />
                   Join
@@ -213,16 +275,92 @@ export const InterviewDetailModal: React.FC<InterviewDetailModalProps> = ({
               </div>
             )}
 
-            {/* Scorecard Submission Section */}
-            {onSubmitScorecard && (
+            {/* Reschedule & Cancel Controls (Restricted to internal staff) */}
+            {!isCandidateView && !isTerminal && (
+              <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200 space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-slate-800">Interview Management</span>
+                  <div className="flex items-center gap-2">
+                    {onOpenReschedule && (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => onOpenReschedule(interview)}
+                        className="text-purple-700 border-purple-200 hover:bg-purple-50"
+                      >
+                        <RefreshCw className="w-3.5 h-3.5 mr-1" />
+                        Reschedule
+                      </Button>
+                    )}
+                    {onCancelInterview && !showCancelPrompt && (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setShowCancelPrompt(true)}
+                        className="text-red-700 border-red-200 hover:bg-red-50"
+                      >
+                        <Ban className="w-3.5 h-3.5 mr-1" />
+                        Cancel
+                      </Button>
+                    )}
+                  </div>
+                </div>
+
+                {/* Cancel confirmation inline */}
+                {showCancelPrompt && (
+                  <div className="p-3 bg-red-50 border border-red-200 rounded-lg space-y-2">
+                    <div className="flex items-center gap-1.5 text-red-800 font-bold">
+                      <AlertTriangle className="w-4 h-4 text-red-600 shrink-0" />
+                      <span>Confirm Cancellation</span>
+                    </div>
+                    <p className="text-[11px] text-red-700">
+                      Please enter a reason for cancelling this interview event:
+                    </p>
+                    <input
+                      type="text"
+                      value={cancelReason}
+                      onChange={(e) => setCancelReason(e.target.value)}
+                      placeholder="e.g. Candidate withdrew or role put on hold"
+                      className="w-full text-xs p-2 rounded-lg border border-red-300 bg-white"
+                      minLength={3}
+                    />
+                    <div className="flex justify-end gap-2 pt-1">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setShowCancelPrompt(false)}
+                      >
+                        Nevermind
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="primary"
+                        size="sm"
+                        disabled={cancelReason.trim().length < 3 || isCancelling}
+                        onClick={handleConfirmCancel}
+                        className="bg-red-600 hover:bg-red-700 text-white"
+                      >
+                        {isCancelling ? 'Cancelling...' : 'Confirm Cancel'}
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Scorecard Submission Section (STRICTLY HIDDEN from Candidates) */}
+            {!isCandidateView && onSubmitScorecard && (
               <div className="pt-3 border-t border-slate-200 space-y-3">
                 <div className="flex items-center justify-between">
                   <p className="font-bold text-slate-900 flex items-center gap-1.5">
                     <FileCheck2 className="w-4 h-4 text-purple-600" />
-                    <span>Evaluator Scorecard</span>
+                    <span>Evaluator Structured Scorecard</span>
                   </p>
-                  {interview.scorecard ? (
-                    <Badge variant="success" size="sm">Scorecard Logged</Badge>
+                  {interview.scorecard || interview.status === 'COMPLETED' ? (
+                    <Badge variant="success" size="sm">Scorecard Recorded</Badge>
                   ) : (
                     <span className="text-[10px] text-slate-400">Pending Evaluation</span>
                   )}
@@ -231,7 +369,35 @@ export const InterviewDetailModal: React.FC<InterviewDetailModalProps> = ({
                 {scorecardSuccess ? (
                   <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs flex items-center gap-2">
                     <Check className="w-4 h-4 text-emerald-600" />
-                    <span>Scorecard recorded successfully. Thank you for your evaluation!</span>
+                    <span>Scorecard recorded successfully. Interview has been marked as Completed.</span>
+                  </div>
+                ) : interview.scorecard ? (
+                  <div className="p-3 bg-purple-50/50 rounded-xl border border-purple-200/60 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="font-semibold text-slate-700">Recommendation:</span>
+                      <span className="font-bold text-purple-700">{interview.scorecard.recommendation}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="font-semibold text-slate-700">Rating:</span>
+                      <div className="flex items-center gap-0.5">
+                        {[1, 2, 3, 4, 5].map((star) => (
+                          <Star
+                            key={star}
+                            className={`w-3.5 h-3.5 ${
+                              star <= interview.scorecard!.rating
+                                ? 'text-amber-500 fill-amber-500'
+                                : 'text-slate-300'
+                            }`}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                    {interview.scorecard.confidentialNotes && (
+                      <div className="pt-1 border-t border-purple-100 text-[11px] text-slate-600">
+                        <span className="font-bold text-slate-700">Notes: </span>
+                        {interview.scorecard.confidentialNotes}
+                      </div>
+                    )}
                   </div>
                 ) : (
                   <form onSubmit={handleScorecardSubmit} className="space-y-3 bg-slate-50/70 p-3.5 rounded-xl border border-slate-200">
@@ -249,8 +415,8 @@ export const InterviewDetailModal: React.FC<InterviewDetailModalProps> = ({
                             <Star
                               className={`w-4 h-4 ${
                                 star <= scorecardRating
-                                  ? 'text-amber-500 fill-amber-500'
-                                  : 'text-slate-300'
+                                    ? 'text-amber-500 fill-amber-500'
+                                    : 'text-slate-300'
                               }`}
                             />
                           </button>
@@ -259,7 +425,7 @@ export const InterviewDetailModal: React.FC<InterviewDetailModalProps> = ({
                     </div>
 
                     <div className="space-y-1">
-                      <label className="font-medium text-slate-600">Recommendation:</label>
+                      <label className="font-medium text-slate-600">Hire Recommendation:</label>
                       <select
                         value={recommendation}
                         onChange={(e) => setRecommendation(e.target.value as any)}
@@ -273,12 +439,34 @@ export const InterviewDetailModal: React.FC<InterviewDetailModalProps> = ({
                     </div>
 
                     <div className="space-y-1">
-                      <label className="font-medium text-slate-600">Confidential Evaluation Feedback:</label>
+                      <label className="font-medium text-slate-600">Candidate Strengths:</label>
+                      <input
+                        type="text"
+                        value={strengths}
+                        onChange={(e) => setStrengths(e.target.value)}
+                        placeholder="e.g. Excellent concurrency mastery, clean code patterns..."
+                        className="w-full text-xs p-2 rounded-lg border border-slate-300 bg-white"
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="font-medium text-slate-600">Concerns / Gaps:</label>
+                      <input
+                        type="text"
+                        value={concerns}
+                        onChange={(e) => setConcerns(e.target.value)}
+                        placeholder="e.g. Light on Kubernetes operations experience..."
+                        className="w-full text-xs p-2 rounded-lg border border-slate-300 bg-white"
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="font-medium text-slate-600">Confidential Hiring Team Notes:</label>
                       <textarea
                         rows={2}
                         value={scorecardNotes}
                         onChange={(e) => setScorecardNotes(e.target.value)}
-                        placeholder="Add candidate evaluation strengths, architecture gaps, or hiring recommendation..."
+                        placeholder="Confidential evaluation visible only to internal hiring committee..."
                         className="w-full text-xs p-2 rounded-lg border border-slate-300 bg-white"
                       />
                     </div>
@@ -288,9 +476,10 @@ export const InterviewDetailModal: React.FC<InterviewDetailModalProps> = ({
                         type="submit"
                         variant="primary"
                         size="sm"
-                        isLoading={isSubmittingScorecard}
+                        disabled={isSubmittingScorecard}
+                        className="bg-purple-600 hover:bg-purple-700 text-white"
                       >
-                        Submit Scorecard
+                        {isSubmittingScorecard ? 'Submitting...' : 'Submit Scorecard'}
                       </Button>
                     </div>
                   </form>
