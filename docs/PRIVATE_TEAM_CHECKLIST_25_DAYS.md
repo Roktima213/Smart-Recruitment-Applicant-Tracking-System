@@ -290,15 +290,15 @@ Establish Schema / API Contract               Build UI & State using Mock Data (
 ---
 
 #### 🔹 Day 16 (Floor 16): Interview Rescheduling & Confidential Evaluator Scorecards
-* [ ] **Cloud:** `feat(db): add audit logging for interview reschedules and scorecard events`
+* [x] **Cloud:** `feat(db): add audit logging for interview reschedules and scorecard events`
   * Add DB audit log triggers for interview reschedules and scorecard submissions.
-* [ ] **Backend:** `feat(interviews-api): add reschedule cancel and confidential feedback routes`
+* [x] **Backend:** `feat(interviews-api): add reschedule cancel and confidential feedback routes`
   * Implement `PATCH /api/interviews/:id` (reschedule/cancel) and `POST/GET /api/interviews/:id/feedback`.
-* [ ] **Frontend 1:** `feat(interviews-ui): build reschedule modal and evaluator feedback scorecard`
+* [x] **Frontend 1:** `feat(interviews-ui): build reschedule modal and evaluator feedback scorecard`
   * Build Reschedule Modal and Structured Scorecard form (1–5 ratings, strengths, concerns, hire decision).
-* [ ] **Frontend 2:** `feat(interviews-ui): wire scorecard submission and candidate role view isolation`
+* [x] **Frontend 2:** `feat(interviews-ui): wire scorecard submission and candidate role view isolation`
   * Wire scorecard submit hook; hide evaluator feedback from candidate views.
-* [ ] **Leader / DevOps:** `test(interviews): verify candidate isolation from interviewer feedback api`
+* [x] **Leader / DevOps:** `test(interviews): verify candidate isolation from interviewer feedback api`
   * Add tests proving Candidate receives 403 Forbidden when requesting `/feedback`.
 * **Daily Done Criteria:** Interviewer submits scorecard; Candidate sees interview status but cannot see internal feedback.
 

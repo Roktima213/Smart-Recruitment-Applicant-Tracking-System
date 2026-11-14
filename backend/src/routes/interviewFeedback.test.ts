@@ -396,6 +396,22 @@ describe('Interview Rescheduling & Scorecard Feedback APIs (/api/interviews)', (
       expect(res.body.error).toBe('Forbidden');
     });
 
+    it('should prevent candidate token with active candidate session from accessing scorecard by id', async () => {
+      mockVerifyFirebaseIdToken.mockResolvedValueOnce({
+        uid: 'cand-attacker-999',
+        email: 'attacker@evil.com',
+        role: 'CANDIDATE',
+        isActive: true,
+      });
+
+      const res = await request(app)
+        .get(`/api/interviews/${interviewId}/feedback?includeConfidential=true`)
+        .set('Authorization', 'Bearer malicious-token');
+
+      expect(res.status).toBe(403);
+      expect(res.body.error).toBe('Forbidden');
+    });
+
     it('should return scorecards for authorized staff (HR/Interviewer)', async () => {
       mockVerifyFirebaseIdToken.mockResolvedValueOnce(hrToken);
 
