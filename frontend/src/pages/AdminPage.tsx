@@ -24,6 +24,7 @@ import {
 } from 'lucide-react';
 import { Button, Badge, Modal, Input, Select } from '../components/ui';
 import { apiClient } from '../services/apiClient';
+import { NotificationDeliveryLog } from '../components/notification';
 
 export type UserRole = 'ADMIN' | 'HR' | 'CANDIDATE';
 
@@ -945,6 +946,11 @@ export const AdminPage: React.FC = () => {
           </div>
         </form>
       </div>
+
+      {/* ------------------------------------------------------------------- */}
+      {/* SECTION 3: Notification Delivery Logs & Simulator Telemetry         */}
+      {/* ------------------------------------------------------------------- */}
+      <NotificationDeliveryLog />
 
       {/* ------------------------------------------------------------------- */}
       {/* MODAL 1: Role Modification Modal (with Instant Feedback)            */}
