@@ -777,4 +777,45 @@ describe('Interview Scheduling & Conflict Check APIs (/api/interviews)', () => {
       expect(res.body.error).toBe('Unauthorized');
     });
   });
+
+  describe('GET /api/interviews/interviewers - Available Interviewers Scoping', () => {
+    it('1. Successfully returns active HR interviewers for the authenticated company', async () => {
+      mockVerifyFirebaseIdToken.mockResolvedValueOnce(hrToken);
+      mockQuery.mockResolvedValueOnce({
+        rows: [
+          { id: '11111111-1111-4111-8111-111111111111', full_name: 'Helen Recruiter', email: 'helen@companya.com', role: 'HR' },
+          { id: '22222222-2222-4222-8222-222222222222', full_name: 'Ranadeep Saha', email: 'ranadeep@companya.com', role: 'ADMIN' },
+        ],
+      });
+
+      const res = await request(app)
+        .get('/api/interviews/interviewers')
+        .set('Authorization', 'Bearer hr-token');
+
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+      expect(res.body.data).toHaveLength(2);
+      expect(res.body.data[0]).toHaveProperty('name', 'Helen Recruiter');
+    });
+
+    it('2. Rejects unauthenticated request with 401 Unauthorized', async () => {
+      const res = await request(app).get('/api/interviews/interviewers');
+      expect(res.status).toBe(401);
+      expect(res.body.error).toBe('Unauthorized');
+    });
+
+    it('3. Rejects CANDIDATE role with 403 Forbidden', async () => {
+      mockVerifyFirebaseIdToken.mockResolvedValueOnce({
+        uid: 'cand-001',
+        email: 'cand@example.com',
+        role: 'CANDIDATE',
+      });
+
+      const res = await request(app)
+        .get('/api/interviews/interviewers')
+        .set('Authorization', 'Bearer candidate-token');
+
+      expect(res.status).toBe(403);
+    });
+  });
 });

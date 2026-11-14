@@ -275,15 +275,15 @@ Establish Schema / API Contract               Build UI & State using Mock Data (
 **Milestone Release:** `v0.3.0-week3`
 
 #### 🔹 Day 15 (Floor 15): Interview Creation, Scheduling & Conflict Detection
-* [ ] **Cloud:** `feat(cloud): add utc timezone normalizer and meeting link generator service`
+* [x] **Cloud:** `feat(cloud): add utc timezone normalizer and meeting link generator service`
   * Build `meetingService.ts` normalizing timestamps to UTC and generating meeting URLs.
-* [ ] **Backend:** `feat(interviews-api): implement interview scheduling and conflict check api`
+* [x] **Backend:** `feat(interviews-api): implement interview scheduling and conflict check api`
   * Implement `POST /api/interviews` and `GET /api/interviews` with interviewer conflict validation.
 * [x] **Frontend 1:** `feat(interviews-ui): build interview calendar list view and scheduling modal`
   * Build Page 5: Interviews (`/hr/interviews` & `/candidate/interviews`) with Calendar/List view and Schedule Modal.
-* [ ] **Frontend 2:** `feat(interviews-ui): wire interview form validation and conflict error handling`
+* [x] **Frontend 2:** `feat(interviews-ui): wire interview form validation and conflict error handling`
   * Wire interview form date-time picker, interviewer selector, and schedule mutation.
-* [ ] **Leader / DevOps:** `test(interviews): add conflict detection and timestamp validation tests`
+* [x] **Leader / DevOps:** `test(interviews): add conflict detection and timestamp validation tests`
   * Write tests verifying overlapping interview times or `ends_at <= starts_at` return 400/409.
 * **Daily Done Criteria:** Scheduling an interview validates availability; conflicting schedule is rejected.
 
