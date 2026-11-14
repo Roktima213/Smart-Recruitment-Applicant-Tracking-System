@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   Calendar as CalendarIcon,
   List as ListIcon,
@@ -10,11 +10,13 @@ import {
   InterviewCalendarView,
   InterviewListView,
   InterviewDetailModal,
+  CandidateOption,
 } from '../../components/interview';
 import { Button } from '../../components/ui/Button';
 import { useToast } from '../../context/ToastContext';
+import { useInterviews, InterviewRequestError } from '../../hooks/useInterviews';
 
-// Synthetic realistic interview schedule for Floor 15
+// Synthetic realistic fallback interview schedule for Floor 15 demo / offline mode
 const INITIAL_INTERVIEWS: InterviewEvent[] = [
   {
     id: 'int-1',
@@ -122,11 +124,60 @@ const INITIAL_INTERVIEWS: InterviewEvent[] = [
 ];
 
 export const HrInterviewsPage: React.FC = () => {
-  const { success, info } = useToast();
+  const { success, error: toastError, info } = useToast();
   const [interviews, setInterviews] = useState<InterviewEvent[]>(INITIAL_INTERVIEWS);
   const [layoutView, setLayoutView] = useState<'calendar' | 'list'>('calendar');
   const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false);
   const [selectedInterviewForDetail, setSelectedInterviewForDetail] = useState<InterviewEvent | null>(null);
+
+  const {
+    interviews: apiInterviews,
+    interviewers,
+    applications,
+    fetchInterviews,
+    fetchInterviewOptions,
+    scheduleInterview,
+  } = useInterviews();
+
+  useEffect(() => {
+    fetchInterviews();
+    fetchInterviewOptions();
+  }, [fetchInterviews, fetchInterviewOptions]);
+
+  // Synchronize API interviews into calendar events
+  useEffect(() => {
+    if (apiInterviews && apiInterviews.length > 0) {
+      const liveEvents: InterviewEvent[] = apiInterviews.map((item) => ({
+        id: item.id,
+        applicationId: item.application_id,
+        candidateName: item.candidate_name || 'Candidate',
+        candidateRole: item.job_title || 'Applicant',
+        jobTitle: item.job_title || 'Engineering',
+        title: item.title,
+        type: 'TECHNICAL',
+        scheduledStart: item.scheduled_start,
+        scheduledEnd: item.scheduled_end,
+        locationOrLink: item.location_or_link || 'https://meet.google.com',
+        status: (item.status as any) || 'SCHEDULED',
+        rescheduleCount: 0,
+        interviewer: item.interviewer_name || 'Assigned Recruiter',
+        notes: item.description || '',
+      }));
+      setInterviews(liveEvents);
+    }
+  }, [apiInterviews]);
+
+  // Transform candidates from available applications
+  const candidateOptions: CandidateOption[] = useMemo(() => {
+    if (!applications || applications.length === 0) return [];
+    return applications.map((app) => ({
+      id: app.id,
+      name: app.candidate?.name || 'Applicant',
+      role: app.job?.title || app.currentStage || 'Candidate',
+      email: app.candidate?.email || 'applicant@example.com',
+      jobTitle: app.job?.title || 'Open Position',
+    }));
+  }, [applications]);
 
   // Metric aggregates
   const stats = useMemo(() => {
@@ -143,17 +194,42 @@ export const HrInterviewsPage: React.FC = () => {
   const handleScheduleNew = async (
     eventData: Omit<InterviewEvent, 'id' | 'rescheduleCount'>
   ) => {
-    const newInterview: InterviewEvent = {
-      ...eventData,
-      id: `int-${Date.now()}`,
-      rescheduleCount: 0,
-    };
+    try {
+      if (eventData.applicationId && interviewers && interviewers.length > 0) {
+        const interviewerId = interviewers[0]?.id;
+        await scheduleInterview({
+          applicationId: eventData.applicationId,
+          interviewerId,
+          title: eventData.title,
+          description: eventData.notes || null,
+          scheduledStart: eventData.scheduledStart,
+          scheduledEnd: eventData.scheduledEnd,
+          locationOrLink: eventData.locationOrLink || null,
+        });
+      }
 
-    setInterviews((prev) => [newInterview, ...prev]);
-    success(
-      `Scheduled "${newInterview.title}" for ${newInterview.candidateName}. Invitations dispatched.`,
-      'Interview Created'
-    );
+      const newInterview: InterviewEvent = {
+        ...eventData,
+        id: `int-${Date.now()}`,
+        rescheduleCount: 0,
+      };
+
+      setInterviews((prev) => [newInterview, ...prev]);
+      success(
+        `Scheduled "${newInterview.title}" for ${newInterview.candidateName}. Invitations dispatched.`,
+        'Interview Created'
+      );
+      setIsScheduleModalOpen(false);
+    } catch (err: any) {
+      if (err instanceof InterviewRequestError && err.status === 409) {
+        toastError(
+          'Scheduling conflict: this interviewer already has an interview during the selected time.',
+          'Conflict Detected'
+        );
+      } else {
+        toastError(err?.message || 'Unable to schedule interview', 'Scheduling Error');
+      }
+    }
   };
 
   const handleScorecardSubmit = async (
@@ -320,6 +396,7 @@ export const HrInterviewsPage: React.FC = () => {
         onClose={() => setIsScheduleModalOpen(false)}
         onSchedule={handleScheduleNew}
         existingInterviews={interviews}
+        availableCandidates={candidateOptions.length > 0 ? candidateOptions : undefined}
       />
 
       {/* Interview Detail & Scorecard Modal */}
@@ -332,3 +409,5 @@ export const HrInterviewsPage: React.FC = () => {
     </div>
   );
 };
+
+export default HrInterviewsPage;
