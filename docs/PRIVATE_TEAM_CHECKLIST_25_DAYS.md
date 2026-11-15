@@ -324,7 +324,7 @@ Establish Schema / API Contract               Build UI & State using Mock Data (
   * Store approved HTML templates and configure snapshot archiving for issued offers.
 * [ ] **Backend:** `feat(offers-api): build template offer letter generator and issue endpoint`
   * Build `offerTemplateService.ts` (safe HTML injection of salary, title, start date) and `POST /api/offers`, `PATCH /api/offers/:id/issue`.
-* [ ] **Frontend 1:** `feat(offers-ui): build hr offer letter composer and live template preview`
+* [x] **Frontend 1:** `feat(offers-ui): build hr offer letter composer and live template preview`
   * Build Page 6: Offers & Onboarding (`/hr/offers`) with offer template composer and live preview.
 * [ ] **Frontend 2:** `feat(offers-ui): wire offer form validation and offer issuance mutation`
   * Wire salary number validation, start date validation, and Issue Offer action button.

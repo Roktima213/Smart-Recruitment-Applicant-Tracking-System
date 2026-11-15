@@ -5,6 +5,7 @@ import {
   createDraftOffer,
   issueOffer,
   getOfferById,
+  listOffers,
   createOfferSchema,
 } from '../controllers/offerController';
 
@@ -12,6 +13,12 @@ const router = Router();
 
 // Protect all /api/offers endpoints with Firebase authentication
 router.use(authenticateFirebase);
+
+/**
+ * GET /api/offers
+ * List offers accessible to caller (scoped by organization or candidate).
+ */
+router.get('/', listOffers);
 
 /**
  * POST /api/offers
@@ -26,12 +33,18 @@ router.post(
 );
 
 /**
- * PATCH /api/offers/:id/issue
+ * PATCH /api/offers/:id/issue & POST /api/offers/:id/issue
  * Atomically issues an offer, transitions application stage from SELECTED to OFFERED,
  * appends stage audit history, and enqueues a notification event.
  * Restricted to HR, ADMIN, SUPER_ADMIN.
  */
 router.patch(
+  '/:id/issue',
+  requireRole(['ADMIN', 'SUPER_ADMIN', 'HR']),
+  issueOffer
+);
+
+router.post(
   '/:id/issue',
   requireRole(['ADMIN', 'SUPER_ADMIN', 'HR']),
   issueOffer

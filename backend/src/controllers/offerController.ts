@@ -806,3 +806,82 @@ export async function getOfferById(req: Request, res: Response): Promise<void> {
     });
   }
 }
+
+/**
+ * 4. GET /api/offers
+ * Lists offers for the caller's organization (HR/ADMIN) or candidate.
+ */
+export async function listOffers(req: Request, res: Response): Promise<void> {
+  try {
+    const callerUid = req.user?.uid;
+    const callerRole = (req.user?.role || '').toUpperCase();
+
+    if (!callerUid) {
+      res.status(401).json({
+        success: false,
+        error: { message: 'Authentication required prior to listing offers', statusCode: 401 },
+      });
+      return;
+    }
+
+    let sql = `
+      SELECT 
+        o.id,
+        o.application_id,
+        o.salary_amount,
+        o.currency,
+        o.start_date,
+        o.offer_letter_html,
+        o.status,
+        o.issued_at,
+        o.expires_at,
+        o.created_at,
+        u.full_name AS candidate_name,
+        u.email AS candidate_email,
+        j.title AS job_title,
+        c.name AS company_name
+      FROM offer_records o
+      JOIN applications a ON o.application_id = a.id
+      JOIN jobs j ON a.job_id = j.id
+      JOIN companies c ON j.company_id = c.id
+      JOIN candidate_profiles cp ON a.candidate_id = cp.id
+      JOIN users u ON cp.user_id = u.id
+    `;
+    const params: any[] = [];
+
+    if (callerRole === 'CANDIDATE') {
+      sql += ' WHERE u.firebase_uid = $1 ORDER BY o.created_at DESC';
+      params.push(callerUid);
+    } else if (callerRole === 'HR') {
+      let hrCompanyId = req.user?.companyId;
+      if (!hrCompanyId) {
+        const userRes = await query('SELECT company_id FROM users WHERE firebase_uid = $1 LIMIT 1;', [callerUid]);
+        hrCompanyId = userRes.rows[0]?.company_id || null;
+      }
+      if (!hrCompanyId) {
+        res.status(200).json({ success: true, data: [] });
+        return;
+      }
+      sql += ' WHERE j.company_id = $1 ORDER BY o.created_at DESC';
+      params.push(hrCompanyId);
+    } else {
+      sql += ' ORDER BY o.created_at DESC';
+    }
+
+    const result = await query(sql, params);
+    res.status(200).json({
+      success: true,
+      data: result.rows,
+    });
+  } catch (error: any) {
+    console.error('[OfferController] Error listing offers:', error);
+    res.status(error.statusCode || 500).json({
+      success: false,
+      error: {
+        message: error.message || 'Internal server error while listing offers',
+        statusCode: error.statusCode || 500,
+      },
+    });
+  }
+}
+
