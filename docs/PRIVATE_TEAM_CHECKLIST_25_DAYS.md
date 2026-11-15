@@ -320,7 +320,7 @@ Establish Schema / API Contract               Build UI & State using Mock Data (
 ---
 
 #### 🔹 Day 18 (Floor 18): Template Offer Letter Generator & Issuance
-* [ ] **Cloud:** `feat(cloud): add controlled offer letter templates and snapshot archiving`
+* [x] **Cloud:** `feat(cloud): add controlled offer letter templates and snapshot archiving`
   * Store approved HTML templates and configure snapshot archiving for issued offers.
 * [ ] **Backend:** `feat(offers-api): build template offer letter generator and issue endpoint`
   * Build `offerTemplateService.ts` (safe HTML injection of salary, title, start date) and `POST /api/offers`, `PATCH /api/offers/:id/issue`.
