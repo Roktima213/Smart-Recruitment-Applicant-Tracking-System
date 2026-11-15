@@ -138,17 +138,21 @@ export const HrOffersPage: React.FC = () => {
 
   return (
     <div className="space-y-6 animate-fadeIn pb-12">
-      {/* Top Header & Navigation Bar */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      {/* Page Header */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-200 pb-5">
         <div>
-          <div className="flex items-center gap-2.5">
-            <h1 className="text-2xl font-bold text-slate-900">Offers & Onboarding</h1>
-            <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-brand-50 text-brand-700 border border-brand-200">
-              Page 6 • Floor 18
+          <div className="flex items-center gap-2 mb-1">
+            <span className="px-2.5 py-0.5 rounded-full text-2xs font-extrabold uppercase tracking-wide bg-brand-50 text-brand-700 border border-brand-200">
+              Floor 18 &bull; Offer Management
             </span>
+            <span className="text-xs text-slate-500 font-medium">Enterprise Onboarding Engine</span>
           </div>
-          <p className="text-xs sm:text-sm text-slate-500 mt-0.5">
-            Draft, customize, preview, and issue formal executive and engineering offer letters with live real-time template canvas.
+          <h1 className="text-2xl font-black text-slate-900 tracking-tight">
+            Offers & Employment Contracts
+          </h1>
+          <p className="text-sm text-slate-600 mt-1 max-w-2xl">
+            Author and issue legally validated, controlled employment offer letters with real-time live
+            template canvas.
           </p>
         </div>
 
