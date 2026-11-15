@@ -322,13 +322,13 @@ Establish Schema / API Contract               Build UI & State using Mock Data (
 #### 🔹 Day 18 (Floor 18): Template Offer Letter Generator & Issuance
 * [x] **Cloud:** `feat(cloud): add controlled offer letter templates and snapshot archiving`
   * Store approved HTML templates and configure snapshot archiving for issued offers.
-* [ ] **Backend:** `feat(offers-api): build template offer letter generator and issue endpoint`
+* [x] **Backend:** `feat(offers-api): build template offer letter generator and issue endpoint`
   * Build `offerTemplateService.ts` (safe HTML injection of salary, title, start date) and `POST /api/offers`, `PATCH /api/offers/:id/issue`.
 * [x] **Frontend 1:** `feat(offers-ui): build hr offer letter composer and live template preview`
   * Build Page 6: Offers & Onboarding (`/hr/offers`) with offer template composer and live preview.
-* [ ] **Frontend 2:** `feat(offers-ui): wire offer form validation and offer issuance mutation`
+* [x] **Frontend 2:** `feat(offers-ui): wire offer form validation and offer issuance mutation`
   * Wire salary number validation, start date validation, and Issue Offer action button.
-* [ ] **Leader / DevOps:** `test(offers): add offer generation state and notification trigger tests`
+* [x] **Leader / DevOps:** `test(offers): add offer generation state and notification trigger tests`
   * Add tests proving offers can only be issued to candidates in `Selected` or `Offered` stages.
 * **Daily Done Criteria:** HR creates an offer with live preview; issuing the offer transitions candidate stage to `Offered`.
 
