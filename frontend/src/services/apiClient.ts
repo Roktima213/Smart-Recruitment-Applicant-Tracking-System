@@ -24,6 +24,9 @@ apiClient.interceptors.request.use(
       if (currentUser) {
         const idToken = await currentUser.getIdToken();
         if (idToken) {
+          if (config.headers && typeof (config.headers as any).set === 'function') {
+            (config.headers as any).set('Authorization', `Bearer ${idToken}`);
+          }
           config.headers.Authorization = `Bearer ${idToken}`;
         }
       }

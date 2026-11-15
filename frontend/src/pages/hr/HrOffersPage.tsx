@@ -221,9 +221,9 @@ export const HrOffersPage: React.FC = () => {
         />
       ) : (
         /* Dual-pane Live Composer & Template Preview Canvas */
-        <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 min-h-[750px] items-stretch">
+        <div className="flex flex-col xl:grid xl:grid-cols-12 gap-6 min-h-[600px] items-stretch">
           {/* Left Column: Offer Letter Composer (5 cols on xl) */}
-          <div className="xl:col-span-5 h-[800px]">
+          <div className="xl:col-span-5 h-[650px] sm:h-[750px] xl:h-[820px]">
             <OfferLetterComposer
               currentOffer={activeOffer}
               onChange={setActiveOffer}
@@ -234,7 +234,7 @@ export const HrOffersPage: React.FC = () => {
           </div>
 
           {/* Right Column: Live Template Preview Canvas (7 cols on xl) */}
-          <div className="xl:col-span-7 h-[800px]">
+          <div className="xl:col-span-7 h-[650px] sm:h-[750px] xl:h-[820px]">
             <OfferTemplatePreview
               offer={activeOffer}
               className="h-full"

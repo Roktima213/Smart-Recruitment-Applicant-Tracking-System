@@ -26,6 +26,8 @@ ui-debug.log*
 # Resume & File uploads (Strictly private)
 uploads/*
 !uploads/.gitkeep
+backend/uploads/
+
 
 # Testing and coverage
 coverage/

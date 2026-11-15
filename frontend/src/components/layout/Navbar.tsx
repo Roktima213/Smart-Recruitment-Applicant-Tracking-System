@@ -88,7 +88,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               <div className="leading-tight">
                 <span className="text-brand-600">Smart</span>ATS
                 <span className="hidden sm:inline-block ml-2 text-xs font-semibold px-2 py-0.5 rounded-full bg-brand-50 text-brand-700 border border-brand-200">
-                  Floor 5 (RBAC & Auth Sync)
+                  Floor 18 (Offer Engine)
                 </span>
               </div>
             </Link>
@@ -141,8 +141,9 @@ export const Navbar: React.FC<NavbarProps> = ({
             )}
           </div>
 
-          {/* Mobile menu button */}
-          <div className="flex md:hidden">
+          {/* Mobile menu button & notification */}
+          <div className="flex items-center gap-1.5 md:hidden">
+            {currentUser && <NotificationBell />}
             <button
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
               className="p-2 rounded-lg text-slate-600 hover:text-slate-900 hover:bg-slate-100 focus:outline-none"

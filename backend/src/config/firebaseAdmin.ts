@@ -5,6 +5,11 @@ import fs from 'fs';
 import dotenv from 'dotenv';
 
 dotenv.config();
+// Also attempt to load backend/.env explicitly if running from repo root
+const backendEnvPath = path.resolve(__dirname, '../../.env');
+if (fs.existsSync(backendEnvPath)) {
+  dotenv.config({ path: backendEnvPath });
+}
 
 /**
  * Firebase Admin SDK Initialization
@@ -12,7 +17,9 @@ dotenv.config();
  * and falls back to Service Account JSON or applicationDefault() for cloud environments.
  */
 const projectId = process.env.FIREBASE_PROJECT_ID || 'smart-ats-dev';
-const emulatorHost = process.env.FIREBASE_AUTH_EMULATOR_HOST;
+const emulatorHost =
+  process.env.FIREBASE_AUTH_EMULATOR_HOST ||
+  (process.env.NODE_ENV !== 'production' ? '127.0.0.1:9099' : undefined);
 
 if (emulatorHost) {
   process.env.FIREBASE_AUTH_EMULATOR_HOST = emulatorHost;

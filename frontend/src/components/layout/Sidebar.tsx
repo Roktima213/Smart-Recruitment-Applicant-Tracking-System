@@ -8,9 +8,14 @@ import {
   Gift,
   BarChart3,
   ShieldAlert,
+  X,
 } from 'lucide-react';
 
-export const Sidebar: React.FC = () => {
+export interface SidebarProps {
+  onClose?: () => void;
+}
+
+export const Sidebar: React.FC<SidebarProps> = ({ onClose }) => {
   const hrMenuItems = [
     { name: 'Job Requisitions', path: ROUTES.HR_JOBS, icon: Briefcase },
     { name: 'Hiring Pipeline', path: ROUTES.HR_PIPELINE, icon: GitBranch },
@@ -26,14 +31,26 @@ export const Sidebar: React.FC = () => {
   return (
     <aside
       id="workspace-sidebar"
-      className="w-64 ..."
+      className="w-64 bg-white border-r border-slate-200 flex flex-col shrink-0 min-h-full select-none"
     >
       {/* Sidebar Header */}
-      <div className="p-4 border-b border-slate-100">
-        <h2 className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
-          HR Management Console
-        </h2>
-        <p className="text-xs text-slate-500 mt-1">Smart ATS Workflows</p>
+      <div className="p-4 border-b border-slate-100 flex items-center justify-between">
+        <div>
+          <h2 className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
+            HR Management Console
+          </h2>
+          <p className="text-xs text-slate-500 mt-1">Smart ATS Workflows</p>
+        </div>
+        {onClose && (
+          <button
+            type="button"
+            onClick={onClose}
+            className="lg:hidden p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition"
+            aria-label="Close sidebar"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        )}
       </div>
 
       {/* Nav List */}
