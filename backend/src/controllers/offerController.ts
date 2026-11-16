@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { query, getClient } from '../config/database';
 import { generateOfferLetterHtml } from '../services/offerTemplateService';
 import { validateStageTransition } from '../services/stageMachine';
+import { respondToOfferWithOwnershipGuard } from '../services/offerOwnershipService';
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -734,7 +735,7 @@ export async function getOfferById(req: Request, res: Response): Promise<void> {
       let hrCompanyId = req.user?.companyId;
       if (!hrCompanyId && callerUid) {
         const userRes = await query('SELECT company_id FROM users WHERE firebase_uid = $1 LIMIT 1;', [callerUid]);
-        hrCompanyId = userRes.rows[0]?.company_id || null;
+        hrCompanyId = userRes?.rows?.[0]?.company_id || null;
       }
       if (!hrCompanyId || !offerRow.job_company_id || hrCompanyId !== offerRow.job_company_id) {
         res.status(403).json({
@@ -747,7 +748,11 @@ export async function getOfferById(req: Request, res: Response): Promise<void> {
         return;
       }
     } else if (callerRole === 'ADMIN') {
-      const adminCompanyId = req.user?.companyId;
+      let adminCompanyId = req.user?.companyId;
+      if (!adminCompanyId && callerUid) {
+        const adminRes = await query('SELECT company_id FROM users WHERE firebase_uid = $1 LIMIT 1;', [callerUid]);
+        adminCompanyId = adminRes?.rows?.[0]?.company_id || null;
+      }
       if (adminCompanyId && offerRow.job_company_id && adminCompanyId !== offerRow.job_company_id) {
         res.status(403).json({
           success: false,
@@ -884,4 +889,68 @@ export async function listOffers(req: Request, res: Response): Promise<void> {
     });
   }
 }
+
+/**
+ * 5. POST /api/offers/:id/respond
+ * Candidate responds to an issued offer (ACCEPT or DECLINE) with strict Anti-IDOR ownership validation.
+ * Role: CANDIDATE
+ */
+export async function respondToOffer(req: Request, res: Response): Promise<void> {
+  try {
+    const { id } = req.params;
+    const caller = {
+      uid: req.user?.uid || '',
+      role: req.user?.role || '',
+      companyId: req.user?.companyId,
+      email: req.user?.email,
+    };
+
+    const actionRaw = String(req.body.action || '').trim().toUpperCase();
+    let action: 'ACCEPT' | 'DECLINE' | null = null;
+    if (actionRaw === 'ACCEPT' || actionRaw === 'ACCEPTED') {
+      action = 'ACCEPT';
+    } else if (actionRaw === 'DECLINE' || actionRaw === 'DECLINED') {
+      action = 'DECLINE';
+    }
+
+    if (!action) {
+      res.status(400).json({
+        success: false,
+        error: { message: "Invalid action: must be 'ACCEPT' or 'DECLINE'", statusCode: 400 },
+      });
+      return;
+    }
+
+    const declineReason = req.body.decline_reason || req.body.declineReason || req.body.reason;
+    const result = await respondToOfferWithOwnershipGuard(id, caller, action, declineReason);
+
+    if (!result.success) {
+      res.status(result.statusCode).json({
+        success: false,
+        error: {
+          message: result.error || 'Failed to process offer response',
+          statusCode: result.statusCode,
+        },
+      });
+      return;
+    }
+
+    res.status(200).json({
+      success: true,
+      message: result.message,
+      data: result.offer,
+      offer: result.offer,
+    });
+  } catch (error: any) {
+    console.error('[OfferController] Error responding to offer:', error);
+    res.status(error.statusCode || 500).json({
+      success: false,
+      error: {
+        message: error.message || 'Internal server error while responding to offer',
+        statusCode: error.statusCode || 500,
+      },
+    });
+  }
+}
+
 

@@ -335,7 +335,7 @@ Establish Schema / API Contract               Build UI & State using Mock Data (
 ---
 
 #### 🔹 Day 19 (Floor 19): Candidate Offer Acceptance/Decline & Onboarding Checklist
-* [ ] **Cloud:** `security(cloud): enforce strict candidate ownership checks on offer records`
+* [x] **Cloud:** `security(cloud): enforce strict candidate ownership checks on offer records`
   * Enforce row-level ownership checks ensuring Candidate A cannot view or respond to Candidate B's offer.
 * [ ] **Backend:** `feat(onboarding-api): add candidate offer response and onboarding task api`
   * Implement `POST /api/offers/:id/respond` (ACCEPT/DECLINE auto-spawning tasks) and `PATCH /api/onboarding/:id`.

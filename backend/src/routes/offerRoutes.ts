@@ -6,6 +6,7 @@ import {
   issueOffer,
   getOfferById,
   listOffers,
+  respondToOffer,
   createOfferSchema,
 } from '../controllers/offerController';
 
@@ -58,6 +59,18 @@ router.post(
 router.get(
   '/:id',
   getOfferById
+);
+
+/**
+ * POST /api/offers/:id/respond
+ * Candidate accepts or declines an issued offer.
+ * Enforces strict Anti-IDOR candidate row-level ownership.
+ * Restricted to CANDIDATE.
+ */
+router.post(
+  '/:id/respond',
+  requireRole(['CANDIDATE']),
+  respondToOffer
 );
 
 export default router;

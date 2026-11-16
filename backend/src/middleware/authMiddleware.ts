@@ -79,7 +79,7 @@ export async function authenticateFirebase(
       uid: decodedToken.uid,
       email: decodedToken.email,
       role: (decodedToken.role as string) || 'CANDIDATE',
-      companyId: (decodedToken.companyId as string) || null,
+      companyId: (decodedToken.companyId as string) || (decodedToken.company_id as string) || null,
       isActive: isUserActive,
     };
 
